@@ -51,6 +51,19 @@ class SessionManager:
             self.sessions[session_id].append(client_addr)
             return True, f"Dołączono do sesji {session_id}"
 
+    def remove_from_session(self, client_addr, session_id: str) -> bool:
+        """Usuwa klienta z sesji i usuwa sesję, jeśli nie ma już uczestników."""
+        with self.lock:
+            participants = self.sessions.get(session_id)
+            if not participants or client_addr not in participants:
+                return False
+
+            participants.remove(client_addr)
+            if not participants:
+                self.sessions.pop(session_id, None)
+
+            return True
+
     def get_peer_connection(self, session_id: str, sender_addr):
         """Zwraca socket drugiego uczestnika sesji albo None."""
         with self.lock:

@@ -141,6 +141,9 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
             except ConnectionResetError:
                 break
 
+    if session_id:
+        session_manager.remove_from_session(addr, session_id)
+
     session_manager.unregister_connection(addr)
     if session_id:
         print(f"[ROZLACZONO] {addr} (sesja: {session_id})")
