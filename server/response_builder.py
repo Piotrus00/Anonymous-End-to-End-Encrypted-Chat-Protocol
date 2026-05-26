@@ -21,10 +21,19 @@ def join_ok(session_id: str, msg_id: Any, timestamp: Any) -> Dict[str, Any]:
     }
 
 
+def close_notice(session_id: str, msg_id: Any, timestamp: Any) -> Dict[str, Any]:
+    return {
+        "type": "CLOSE",
+        "session_id": session_id,
+        "msg_id": msg_id,
+        "timestamp": timestamp,
+        "payload": {"status": "SESSION_CLOSED"},
+    }
+
+
 def error(code: str, details: str) -> Dict[str, str]:
     return {
         "type": "ERROR",
         "error_code": code,
         "details": details,
     }
-

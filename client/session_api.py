@@ -74,6 +74,20 @@ def build_msg_frame(session_id: str, text: str) -> dict:
     }
 
 
+def build_close_frame(session_id: str) -> dict:
+    return {
+        "type": "CLOSE",
+        "session_id": session_id,
+        "msg_id": f"close_{uuid.uuid4().hex[:12]}",
+        "timestamp": int(time.time()),
+    }
+
+
+def send_close(sock, session_id: str, encode_message) -> None:
+    frame = build_close_frame(session_id)
+    sock.sendall(encode_message(frame))
+
+
 def start_receiver(sock, decode_message) -> threading.Thread:
     def _receiver_loop():
         while True:
@@ -90,6 +104,10 @@ def start_receiver(sock, decode_message) -> threading.Thread:
                     payload = response.get("payload", {})
                     text = payload.get("ciphertext", "")
                     print(f"\n[MSG] {text}")
+                elif response_type == "CLOSE":
+                    closed_sid = response.get("session_id")
+                    print(f"\n[CLOSE] Sesja {closed_sid} zostala zamknieta")
+                    break
                 elif response_type == "ERROR":
                     print(f"\n[ERROR] {response.get('details', 'Nieznany blad')}")
             except OSError:
@@ -101,12 +119,14 @@ def start_receiver(sock, decode_message) -> threading.Thread:
 
 
 def chat_loop(sock, session_id: str, encode_message, decode_message) -> None:
-    print("\nMozesz wysylac MSG. Wpisz 'exit' aby zakonczyc.")
+    print("\nMozesz wysylac MSG. Wpisz 'exit' aby wyslac CLOSE i zakonczyc.")
     start_receiver(sock, decode_message)
 
     while True:
         text = input("Ty: ").strip()
         if text.lower() == "exit":
+            send_close(sock, session_id, encode_message)
+            time.sleep(0.2)
             return
         if not text:
             continue

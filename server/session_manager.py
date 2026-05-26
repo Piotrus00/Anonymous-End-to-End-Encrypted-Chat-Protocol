@@ -2,8 +2,8 @@
 Zarządzanie sesjami
 """
 
-import uuid
 import threading
+import uuid
 from typing import Dict, List, Optional, Tuple
 
 
@@ -63,3 +63,17 @@ class SessionManager:
                     return self.connections.get(participant_addr)
 
             return None
+
+    def close_session_and_get_connections(self, session_id: str) -> List[object]:
+        """Unieważnia sesje i zwraca aktywne sockety uczestnikow tej sesji."""
+        with self.lock:
+            participants = self.sessions.pop(session_id, None)
+            if not participants:
+                return []
+
+            result = []
+            for participant_addr in participants:
+                conn = self.connections.get(participant_addr)
+                if conn is not None:
+                    result.append(conn)
+            return result
