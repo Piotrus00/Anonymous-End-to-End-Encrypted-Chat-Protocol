@@ -1,11 +1,12 @@
 import socket
 import threading
-import json
-import uuid
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common.protocol import decode_message, encode_message
+from session_manager import SessionManager
 
-# Słownik sesji: session_id -> lista klientów
-sessions = {}
-sessions_lock = threading.Lock()
+session_manager = SessionManager()
 
 def handle_client(conn, addr):
     print(f"[NOWE POŁĄCZENIE] Połączono z {addr}")
@@ -17,17 +18,18 @@ def handle_client(conn, addr):
                     break # Klient się rozłączył
 
                 # 1. Odkodowanie wiadomości i parsowanie JSON
-                message_str = data.decode('utf-8')
-                message_json = json.loads(message_str)
+                success, message_json = decode_message(data)
+
+                if not success:
+                    print(f"[{addr}] Błąd: Otrzymano niepoprawny JSON")
+                    break
+
                 print(f"[{addr}] Otrzymano: {message_json}")
 
                 # 2. Przygotowanie odpowiedzi w formacie JSON
                 # Obsługa INIT - tworzymy nową sesję
                 if message_json.get('type') == 'INIT':
-                    session_id = f"sess_{uuid.uuid4().hex[:12]}"
-
-                    with sessions_lock:
-                        sessions[session_id] = [addr]
+                    session_id = session_manager.create_session(addr)
 
                     response = {
                         "type": "INIT",
@@ -47,11 +49,8 @@ def handle_client(conn, addr):
                     }
 
                 # 3. Zakodowanie JSON do wysłania
-                conn.sendall(json.dumps(response).encode('utf-8'))
+                conn.sendall(encode_message(response))
 
-            except json.JSONDecodeError:
-                print(f"[{addr}] Błąd: Otrzymano niepoprawny JSON")
-                break
             except ConnectionResetError:
                 break
 

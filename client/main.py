@@ -1,6 +1,9 @@
 import socket
-import json
 import time
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common.protocol import encode_message, decode_message
 
 def main():
     host = '127.0.0.1'
@@ -18,18 +21,19 @@ def main():
         }
 
         print("\n→ Wysyłam INIT...")
-        s.sendall(json.dumps(init_message).encode('utf-8'))
+        s.sendall(encode_message(init_message))
 
         # Odbieramy odpowiedź (session_id)
         data = s.recv(1024)
         session_id = None
         if data:
-            response_data = json.loads(data.decode('utf-8'))
-            print(f"\n✓ Odpowiedź z serwera:")
-            print(f"  Type: {response_data.get('type')}")
-            session_id = response_data.get('session_id')
-            print(f"  Session ID: {session_id}")
-            print(f"  Status: {response_data.get('payload', {}).get('status')}")
+            success, response_data = decode_message(data)
+            if success:
+                print(f"\n✓ Odpowiedź z serwera:")
+                print(f"  Type: {response_data.get('type')}")
+                session_id = response_data.get('session_id')
+                print(f"  Session ID: {session_id}")
+                print(f"  Status: {response_data.get('payload', {}).get('status')}")
 
         print("\nWpisz 'exit', aby zakończyć test, lub wysyłaj wiadomości.")
 
@@ -52,15 +56,15 @@ def main():
                 }
             }
 
-            # Zamieniamy słownik na format JSON i kodujemy na bajty
-            json_string = json.dumps(message_data)
-            s.sendall(json_string.encode('utf-8'))
+            # Wysyłamy wiadomość
+            s.sendall(encode_message(message_data))
 
             # Oczekujemy na odpowiedź serwera
             data = s.recv(1024)
             if data:
-                response_data = json.loads(data.decode('utf-8'))
-                print(f"Odpowiedź z serwera: {response_data}")
+                success, response_data = decode_message(data)
+                if success:
+                    print(f"Odpowiedź z serwera: {response_data}")
 
 if __name__ == '__main__':
     main()
