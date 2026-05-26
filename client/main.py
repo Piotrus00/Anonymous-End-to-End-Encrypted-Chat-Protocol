@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.protocol import decode_message, encode_message
 
 from config import HOST, PORT
-from session_api import send_init, send_join
+from session_api import chat_loop, send_init, send_join
 
 
 def main():
@@ -20,8 +20,10 @@ def main():
 
         if choice == "1":
             session_id = send_init(s, encode_message, decode_message)
-            if session_id:
-                print(f"\nPrzekaz session_id drugiemu uzytkownikowi: {session_id}")
+            if not session_id:
+                return
+            print(f"\nPrzekaz session_id drugiemu uzytkownikowi: {session_id}")
+            chat_loop(s, session_id, encode_message, decode_message)
             return
 
         if choice == "2":
@@ -29,7 +31,9 @@ def main():
             if not session_id:
                 print("X session_id nie moze byc pusty")
                 return
-            send_join(s, session_id, encode_message, decode_message)
+            if not send_join(s, session_id, encode_message, decode_message):
+                return
+            chat_loop(s, session_id, encode_message, decode_message)
             return
 
         print("X Niepoprawny wybor")
