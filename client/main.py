@@ -1,70 +1,39 @@
 import socket
-import time
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from common.protocol import encode_message, decode_message
+from common.protocol import decode_message, encode_message
+
+from config import HOST, PORT
+from session_api import send_init, send_join
+
 
 def main():
-    host = '127.0.0.1'
-    port = 65432
-
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((host, port))
-        print("Połączono z serwerem!")
+        s.connect((HOST, PORT))
+        print("Polaczono z serwerem!")
 
-        # Wysyłamy INIT - tworzymy nową sesję
-        init_message = {
-            "type": "INIT",
-            "msg_id": "msg_001",
-            "timestamp": int(time.time())
-        }
+        print("\n[1] Tworzyc nowa sesje (INIT)")
+        print("[2] Dolaczyc do istniejacej sesji (JOIN)")
+        choice = input("\nWybierz opcje (1 lub 2): ").strip()
 
-        print("\n→ Wysyłam INIT...")
-        s.sendall(encode_message(init_message))
+        if choice == "1":
+            session_id = send_init(s, encode_message, decode_message)
+            if session_id:
+                print(f"\nPrzekaz session_id drugiemu uzytkownikowi: {session_id}")
+            return
 
-        # Odbieramy odpowiedź (session_id)
-        data = s.recv(1024)
-        session_id = None
-        if data:
-            success, response_data = decode_message(data)
-            if success:
-                print(f"\n✓ Odpowiedź z serwera:")
-                print(f"  Type: {response_data.get('type')}")
-                session_id = response_data.get('session_id')
-                print(f"  Session ID: {session_id}")
-                print(f"  Status: {response_data.get('payload', {}).get('status')}")
+        if choice == "2":
+            session_id = input("Wpisz session_id sesji, do ktorej chcesz dolaczyc: ").strip()
+            if not session_id:
+                print("X session_id nie moze byc pusty")
+                return
+            send_join(s, session_id, encode_message, decode_message)
+            return
 
-        print("\nWpisz 'exit', aby zakończyć test, lub wysyłaj wiadomości.")
+        print("X Niepoprawny wybor")
 
-        while True:
-            # Klient czeka na wpisanie tekstu, utrzymując w tym czasie połączenie
-            wpisany_tekst = input("\nWpisz wiadomość (lub 'exit'): ")
 
-            if wpisany_tekst.lower() == 'exit':
-                print("Zamykanie klienta...")
-                break
-
-            # Tworzymy wiadomość jako słownik z podstawowymi polami
-            message_data = {
-                "type": "MSG",
-                "session_id": session_id,
-                "msg_id": f"msg_{int(time.time())}",
-                "timestamp": int(time.time()),
-                "payload": {
-                    "ciphertext": wpisany_tekst
-                }
-            }
-
-            # Wysyłamy wiadomość
-            s.sendall(encode_message(message_data))
-
-            # Oczekujemy na odpowiedź serwera
-            data = s.recv(1024)
-            if data:
-                success, response_data = decode_message(data)
-                if success:
-                    print(f"Odpowiedź z serwera: {response_data}")
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

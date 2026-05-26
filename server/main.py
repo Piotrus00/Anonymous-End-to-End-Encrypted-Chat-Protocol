@@ -2,77 +2,36 @@ import socket
 import threading
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.protocol import decode_message, encode_message
+
+from client_handler import handle_client
+from config import HOST, PORT
 from session_manager import SessionManager
 
 session_manager = SessionManager()
 
-def handle_client(conn, addr):
-    print(f"[NOWE POŁĄCZENIE] Połączono z {addr}")
-    with conn:
-        while True:
-            try:
-                data = conn.recv(1024)
-                if not data:
-                    break # Klient się rozłączył
-
-                # 1. Odkodowanie wiadomości i parsowanie JSON
-                success, message_json = decode_message(data)
-
-                if not success:
-                    print(f"[{addr}] Błąd: Otrzymano niepoprawny JSON")
-                    break
-
-                print(f"[{addr}] Otrzymano: {message_json}")
-
-                # 2. Przygotowanie odpowiedzi w formacie JSON
-                # Obsługa INIT - tworzymy nową sesję
-                if message_json.get('type') == 'INIT':
-                    session_id = session_manager.create_session(addr)
-
-                    response = {
-                        "type": "INIT",
-                        "session_id": session_id,
-                        "msg_id": message_json.get("msg_id"),
-                        "timestamp": message_json.get("timestamp"),
-                        "payload": {
-                            "status": "OK"
-                        }
-                    }
-
-                    print(f"[INIT OK] Utworzona sesja {session_id} dla {addr}")
-                else:
-                    response = {
-                        "status": "OK",
-                        "info": "Wiadomość odebrana przez serwer"
-                    }
-
-                # 3. Zakodowanie JSON do wysłania
-                conn.sendall(encode_message(response))
-
-            except ConnectionResetError:
-                break
-
-    print(f"[ROZŁĄCZONO] Koniec połączenia z {addr}")
 
 def main():
-    host = '127.0.0.1'
-    port = 65432
-
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((host, port))
+        s.bind((HOST, PORT))
         s.listen()
-        print(f"[START] Serwer nasłuchuje na {host}:{port}")
+        print(f"[START] Serwer nasluchuje na {HOST}:{PORT}")
 
-        while True:
-            # Serwer czeka na klienta
-            conn, addr = s.accept()
+        try:
+            while True:
+                conn, addr = s.accept()
+                thread = threading.Thread(
+                    target=handle_client,
+                    args=(conn, addr, session_manager, decode_message, encode_message),
+                    daemon=True,
+                )
+                thread.start()
+                print(f"[AKTYWNE] Watki: {threading.active_count() - 1}")
+        except KeyboardInterrupt:
+            print("\n[STOP] Serwer zatrzymywany...")
 
-            # Gdy klient się połączy, tworzymy nowy wątek dla niego
-            thread = threading.Thread(target=handle_client, args=(conn, addr))
-            thread.start()
-            print(f"[AKTYWNE POŁĄCZENIA] Wątki: {threading.active_count() - 1}")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
