@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.protocol import decode_message, encode_message
 
 from client_handler import handle_client
-from config import HOST, PORT
+from common.config import HOST, PORT
 from session_manager import SessionManager
 
 session_manager = SessionManager()

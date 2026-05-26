@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.protocol import decode_message, encode_message
 
-from config import HOST, PORT
+from common.config import HOST, PORT
 from session_api import chat_loop, send_init, send_join
 
 
