@@ -8,7 +8,30 @@ def main():
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((host, port))
-        print("Połączono z serwerem! Wpisz 'exit', aby zakończyć test.")
+        print("Połączono z serwerem!")
+
+        # Wysyłamy INIT - tworzymy nową sesję
+        init_message = {
+            "type": "INIT",
+            "msg_id": "msg_001",
+            "timestamp": int(time.time())
+        }
+
+        print("\n→ Wysyłam INIT...")
+        s.sendall(json.dumps(init_message).encode('utf-8'))
+
+        # Odbieramy odpowiedź (session_id)
+        data = s.recv(1024)
+        session_id = None
+        if data:
+            response_data = json.loads(data.decode('utf-8'))
+            print(f"\n✓ Odpowiedź z serwera:")
+            print(f"  Type: {response_data.get('type')}")
+            session_id = response_data.get('session_id')
+            print(f"  Session ID: {session_id}")
+            print(f"  Status: {response_data.get('payload', {}).get('status')}")
+
+        print("\nWpisz 'exit', aby zakończyć test, lub wysyłaj wiadomości.")
 
         while True:
             # Klient czeka na wpisanie tekstu, utrzymując w tym czasie połączenie
@@ -21,9 +44,9 @@ def main():
             # Tworzymy wiadomość jako słownik z podstawowymi polami
             message_data = {
                 "type": "MSG",
-                "session_id": "testowa_sesja",
-                "msg_id": "1",
-                "timestamp": int(time.time()), # Zawsze aktualny timestamp
+                "session_id": session_id,
+                "msg_id": f"msg_{int(time.time())}",
+                "timestamp": int(time.time()),
                 "payload": {
                     "ciphertext": wpisany_tekst
                 }
