@@ -199,3 +199,226 @@ Serwer co określony czas wysyła `PING` i oczekuje na odpowiedzi od użytkownik
 
 </details>
 
+<details open>
+<summary><h2> Etap II </h2></summary>
+
+## 1. Opis funkcjonalny aplikacji
+
+### Co aplikacja robi?
+
+Aplikacja umożliwia anonimową, szyfrowaną komunikację pomiędzy dwoma użytkownikami.
+
+### Jaki problem użytkownika rozwiązuje?
+
+Aplikacja rozwiązuje problem bezpiecznej komunikacji pomiędzy użytkownikami.
+
+### Kto jest użytkownikiem (aktorzy)?
+
+- **Client A** — tworzy sesję,
+- **Client B** — dołącza do sesji,
+- **Serwer** — zarządzanie sesjami.
+
+## 2. Architektura rozwiązania
+
+### Model
+
+- Client–Server.
+
+### Komponenty
+
+- CLI,
+- serwer,
+- moduł autoryzacji (token JWT),
+- klient A,
+- klient B.
+
+### Diagram komponentów / wdrożenia
+
+![Diagram wdrożenia](docs/images/Diagram%20wdrożenia.png)
+
+
+### Przepływ danych między komponentami.
+
+- Opiera się na podziale na widoczne metadane i ukrytą treść.
+- Klienci łączą się z serwerem, który przechowuje w ulotnej pamięci tylko tymczasowe identyfikatory sesji oraz tokeny JWT dla autoryzacji.
+- Serwer pełni rolę listonosza — odczytuje tylko nagłówki komunikatów, aby wiedzieć, do kogo je skierować.
+- Treść konwersacji (pole `payload`) przesyłana jest jako `ciphertext` i przepływa przez serwer w formie całkowicie dla niego nieczytelnej dzięki szyfrowaniu end-to-end.
+
+## 3. Przypadki użycia (use cases)
+
+### UC1: Utworzenie nowej, anonimowej sesji komunikacyjnej
+
+**Cel:**
+Rozpoczęcie nowej, prywatnej i anonimowej sesji komunikacyjnej, do której może dołączyć drugi użytkownik.
+
+**Aktor:**
+Użytkownik A (inicjujący sesję)
+
+**Warunki wstępne:**
+- Użytkownik A posiada dostęp do aplikacji klienta,
+- serwer relay jest dostępny.
+
+**Scenariusz główny:**
+1. Użytkownik A wysyła żądanie `INIT` do serwera,
+2. serwer generuje unikalny `session_id` oraz token JWT dla użytkownika A,
+3. serwer zwraca użytkownikowi A: `session_id` i JWT,
+4. aplikacja prezentuje użytkownikowi A `session_id` do przekazania zaproszonej osobie.
+
+**Scenariusze alternatywne / błędy:**
+- Serwer nieosiągalny → zwrot błędu, brak sesji,
+- brak zasobów serwera → komunikat błędu,
+- żądanie niepoprawne (np. błędny format) → komunikat błędu.
+
+**Wynik końcowy:**
+Użytkownik A dysponuje nowym `session_id` oraz tokenem JWT. Jest gotów do nawiązania anonimowej sesji.
+
+### UC2: Dołączenie do istniejącej sesji komunikacyjnej
+
+- **Cel:** anonimowe zestawienie dialogu między dwoma klientami,
+- **Aktor:** Client B,
+- **Warunki wstępne:** Server ma aktywną sesję, Client B zna `session_id`,
+- **Scenariusz główny:** wysłanie `JOIN` z ważnym `session_id` → otrzymanie tokenu JWT,
+- **Scenariusze alternatywne:** niepoprawny `session_id`, sesja wygasła,
+- **Wynik końcowy:** obaj klienci są w sesji i gotowi do wymiany kluczy.
+
+### UC3: Wysyłanie anonimowych i szyfrowanych wiadomości tekstowych
+
+**Cel:**
+Bezpieczna, anonimizowana komunikacja pomiędzy uczestnikami sesji (A ↔ B), bez ujawniania treści serwerowi.
+
+**Aktorzy:**
+Użytkownik A i Użytkownik B
+
+**Warunki wstępne:**
+- Obaj uczestnicy mają aktywny JWT i wspólne `session_id`,
+- pomyślnie przeprowadzona wymiana kluczy szyfrujących (key exchange),
+- ustanowione szyfrowanie end-to-end.
+
+**Scenariusz główny:**
+1. Użytkownik A szyfruje wiadomość wynegocjowanym kluczem,
+2. A przesyła zaszyfrowany komunikat typu `MSG` wraz z JWT do serwera,
+3. serwer weryfikuje poprawność JWT, znajduje adresata po `session_id`,
+4. serwer przesyła wiadomość do B,
+5. B otrzymuje wiadomość, odszyfrowuje ją lokalnie tym samym kluczem,
+6. analogiczny przebieg dla A i B na zmianę.
+
+**Scenariusze alternatywne / błędy:**
+- Nieprawidłowy / wygaśnięty JWT → serwer odrzuca żądanie, zwraca błąd,
+- wiadomość nie da się doręczyć (np. drugi użytkownik offline) → buforowanie lub błąd,
+- błąd deszyfrowania po stronie klienta → komunikat o uszkodzonej wiadomości,
+- przekroczony limit długości wiadomości → błąd walidacji.
+
+**Wynik końcowy:**
+Użytkownicy przesyłają między sobą szyfrowane wiadomości. Treść jest niedostępna dla serwera pośredniczącego.
+
+### UC4: Zakończenie sesji komunikacyjnej
+
+**Cel:**
+Poprawne zakończenie rozmowy i unieważnienie aktualnej sesji.
+
+**Aktorzy:**
+Użytkownik A bądź B (może dowolny z uczestników), Serwer.
+
+**Warunki wstępne:**
+- Trwa aktywna sesja,
+- co najmniej jeden użytkownik nadal połączony.
+
+**Scenariusz główny:**
+1. Użytkownik przesyła komunikat `CLOSE` do serwera,
+2. serwer unieważnia sesję (`session_id`) oraz przypisane do niej JWT,
+3. serwer powiadamia obu uczestników o zamknięciu sesji,
+4. klient rozłącza się (opcjonalnie usuwa lokalnie klucze i dane powiązane z sesją).
+
+**Scenariusze alternatywne / błędy:**
+- Próba zakończenia zamkniętej / nieaktywnej sesji → komunikat o błędzie,
+- utrata połączenia przed wysłaniem `CLOSE` → sesja może zostać zamknięta automatycznie po czasie (timeout),
+- błąd walidacji JWT → brak możliwości zamknięcia sesji.
+
+**Wynik końcowy:**
+Sesja zostaje zamknięta, dalsza komunikacja w jej ramach jest niemożliwa. Klienci usuwają lokalne dane dotyczące sesji.
+
+## 4. Mapowanie aplikacji na protokół
+
+| Funkcja aplikacji | Komunikat protokołu | Opis |
+| --- | --- | --- |
+| Utworzenie nowej sesji | `INIT` | Uzyskanie unikalnego identyfikatora sesji oraz uprawnienia |
+| Dołączenie do sesji | `JOIN` | Dwuetapowe, anonimowe zestawienie dialogu |
+| Wymiana kluczy szyfrujących | `KEY_EXCHANGE` | Szyfrowanie wiadomości |
+| Wysyłanie wiadomości tekstowych | `MSG` | Serwer jest „głuchy" — przetwarza routing i walidację sesji/JWT |
+| Odbieranie wiadomości tekstowych | `MSG` | Serwer jest „głuchy" — przetwarza routing i walidację sesji/JWT |
+| Obsługa błędów i problemów | `ERROR` | Klient wie, czy musi ponowić próbę |
+| Zakończenie sesji | `CLOSE` | Zamknięcie połączenia |
+
+### Sposób, w jaki protokół wspiera przypadki użycia
+
+- Protokół gwarantuje bezpieczny przepływ danych między klientami bez utraty poufności.
+- Warstwowe bezpieczeństwo: TLS (transport) + JWT (autoryzacja) + E2EE (treść).
+
+### Ewentualne rozszerzenia protokołu
+
+- Obsługa grup (zamiast 1-na-1),
+- potwierdzenia odczytania wiadomości,
+- typowanie (wskaźnik aktywnego pisania),
+- obsługa plików (poza tekstem).
+
+## 5. Wymagania niefunkcjonalne
+
+### Bezpieczeństwo
+
+- Szyfrowanie end-to-end (E2EE) dla treści wiadomości — serwer nie ma dostępu,
+- połączenie musi być zabezpieczone protokołem TLS,
+- dostęp do sesji weryfikowany za pomocą tokenów JWT,
+- system nie przechowuje trwałych danych użytkownika.
+
+### Wydajność
+
+- Maksymalny rozmiar pojedynczego komunikatu (aby uniknąć przeciążenia),
+- WebSocket dla komunikacji dwukierunkowej w czasie rzeczywistym.
+
+### Niezawodność
+
+- TCP — dostarczanie danych w odpowiedniej kolejności i bez strat,
+- monitorowanie aktywności klientów za pośrednictwem keep-alive (`PING`/`PONG`),
+- timeout i obsługa żartu.
+
+### Skalowalność
+
+- Możliwość szerokiej obsługi użytkowników (stateless server).
+
+### Logowanie / diagnostyka
+
+- Minimalne logowanie (ze względów bezpieczeństwa).
+
+## 6. Plan implementacji i testowania
+
+### Zakres MVP (minimum działające)
+
+- Bezpieczna wymiana wiadomości bez trwałego zapisywania danych.
+
+### Plan testów
+
+#### Testy funkcjonalne
+
+1. Weryfikacja, czy Client A może utworzyć sesję wysyłając `INIT` i otrzymując poprawne `session_id` + token JWT,
+2. sprawdzenie, czy Client B poprawnie dołącza po wysłaniu `JOIN` z ważnym `session_id`,
+3. weryfikacja poprawnego przebiegu `KEY_EXCHANGE` i przesyłania `MSG` z potwierdzeniem `ACK`,
+4. poprawne obsłużenie `CLOSE` i wyrejestrowanie sesji.
+
+#### Testy bezpieczeństwa
+
+1. Przechwycenie ruchu na serwerze — upewnienie się, że `ciphertext` jest nieczytelny bez kluczy klientów,
+2. weryfikacja wymuszenia TLS na warstwie transportowej.
+
+#### Testy obsługi błędów
+
+1. Wysłanie niepoprawnego JSON lub brak wymaganych pól — sprawdzenie błędu,
+2. wysłanie `MSG` z nieprawidłowym lub wygasłym tokenem JWT — sprawdzenie odrzucenia,
+3. obsługa timeout i utraty połączenia.
+
+### Podział pracy
+
+- Osoba 1: implementacja serwera i klientów,
+- osoba 2: implementacja zabezpieczeń,
+- osoba 3: dokumentacja, testy i integracja.
+
+</details>
