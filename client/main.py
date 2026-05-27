@@ -1,7 +1,7 @@
 import asyncio
 
 from common.protocol import decode_message, encode_message
-from common.config import HOST, PORT
+from common.config import HOST, PORT, MAX_MESSAGE_SIZE
 from .api.init_api import send_init
 from .api.join_api import send_join
 from .client import ChatClient
@@ -9,7 +9,7 @@ from .client import ChatClient
 
 async def main():
     try:
-        reader, writer = await asyncio.open_connection(HOST, PORT)
+        reader, writer = await asyncio.open_connection(HOST, PORT, limit=MAX_MESSAGE_SIZE + 1)
     except (ConnectionRefusedError, OSError):
         print(f"X Nie mozna polaczyc sie z serwerem {HOST}:{PORT}")
         return

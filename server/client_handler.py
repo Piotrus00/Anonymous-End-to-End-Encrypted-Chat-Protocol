@@ -8,6 +8,19 @@ from .session_manager import SessionManager
 from common.protocol import decode_message, encode_message
 
 
+async def _discard_oversized_line(reader: asyncio.StreamReader) -> None:
+    """Opróżnia dane aż do nowej linii bez niekontrolowanego wzrostu pamięci."""
+    while True:
+        try:
+            await reader.readuntil(b'\n')
+            return
+        except asyncio.LimitOverrunError as e:
+            # Odrzuć bezpiecznie fragment, który już na pewno nie zawiera separatora.
+            await reader.readexactly(e.consumed)
+        except asyncio.IncompleteReadError:
+            return
+
+
 async def handle_client(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
@@ -21,6 +34,16 @@ async def handle_client(
         while True:
             try:
                 message_bytes = await reader.readuntil(b'\n')
+            except asyncio.LimitOverrunError:
+                print(f"[{addr}] Odrzucono wiadomosc: przekroczono limit bufora bez znaku nowej linii")
+                await _discard_oversized_line(reader)
+                response = error(
+                    code=ERROR_MESSAGE_TOO_LARGE,
+                    details="Wiadomosc jest zbyt duza",
+                )
+                writer.write(encode_message(response))
+                await writer.drain()
+                break
             except (asyncio.IncompleteReadError, ConnectionResetError, ConnectionError):
                 # Client disconnected
                 break

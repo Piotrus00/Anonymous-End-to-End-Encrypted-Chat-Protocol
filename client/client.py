@@ -128,6 +128,15 @@ class ChatClient:
                 elif response_type == "ERROR":
                     print(f"\n[ERROR] {response.details}")
 
+            except asyncio.LimitOverrunError as e:
+                print(f"\n[SYSTEM] Odrzucono odpowiedz serwera: przekroczono limit {MAX_MESSAGE_SIZE} bajtow")
+                # Bezpiecznie odetnij fragment, który na pewno nie zawiera separatora linii.
+                try:
+                    await self.reader.readexactly(e.consumed)
+                except asyncio.IncompleteReadError:
+                    pass
+                self.stop_event.set()
+                break
             except (asyncio.IncompleteReadError, ConnectionError, OSError):
                 print("\n[SYSTEM] Utracono polaczenie z serwerem.")
                 self.stop_event.set()

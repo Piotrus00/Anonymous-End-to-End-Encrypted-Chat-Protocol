@@ -19,6 +19,13 @@ async def send_init(
 
     try:
         data = await reader.readuntil(b'\n')
+    except asyncio.LimitOverrunError as e:
+        print("X Odpowiedz serwera przekroczyla dozwolony rozmiar")
+        try:
+            await reader.readexactly(e.consumed)
+        except asyncio.IncompleteReadError:
+            pass
+        return None
     except asyncio.IncompleteReadError:
         print("X Serwer zamknal polaczenie")
         return None

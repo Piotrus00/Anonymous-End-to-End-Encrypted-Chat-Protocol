@@ -19,6 +19,13 @@ async def send_join(
 
     try:
         data = await reader.readuntil(b'\n')
+    except asyncio.LimitOverrunError as e:
+        print("X Odpowiedz serwera przekroczyla dozwolony rozmiar")
+        try:
+            await reader.readexactly(e.consumed)
+        except asyncio.IncompleteReadError:
+            pass
+        return False
     except asyncio.IncompleteReadError:
         print("X Serwer zamknal polaczenie")
         return False

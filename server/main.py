@@ -6,7 +6,7 @@ from common.protocol import decode_message, encode_message
 from .response_builder import ping, error
 
 from .client_handler import handle_client
-from common.config import HOST, PORT, KEEP_ALIVE_INTERVAL, MAX_MISSED_PINGS
+from common.config import HOST, PORT, KEEP_ALIVE_INTERVAL, MAX_MISSED_PINGS, MAX_MESSAGE_SIZE
 from common.errors import ERROR_DISCONNECTED
 from .session_manager import SessionManager
 
@@ -68,7 +68,7 @@ async def main():
         session_manager=session_manager
     )
 
-    server = await asyncio.start_server(handler, HOST, PORT)
+    server = await asyncio.start_server(handler, HOST, PORT, limit=MAX_MESSAGE_SIZE + 1)
 
     print(f"[START] Serwer nasluchuje na {HOST}:{PORT}")
 
