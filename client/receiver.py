@@ -25,23 +25,21 @@ async def receiver_loop(
             if not success:
                 continue
 
-            response_type = response.get("type")
+            if response is None:
+                continue
+
+            response_type = response.type
             if response_type == "MSG":
-                payload = response.get("payload", {})
-                text = payload.get("ciphertext", "")
+                text = response.payload.ciphertext
                 print(f"\n[MSG] {text}")
 
                 # Send ACK
-                session_id = response.get("session_id")
-                msg_id = response.get("msg_id")
-                if session_id and msg_id:
-                    ack_frame = build_ack_frame(session_id, msg_id)
-                    writer.write(encode_message(ack_frame))
-                    await writer.drain()
+                ack_frame = build_ack_frame(response.session_id, response.msg_id)
+                writer.write(encode_message(ack_frame))
+                await writer.drain()
 
             elif response_type == "ACK":
-                payload = response.get("payload", {})
-                acked_msg_id = payload.get("acked_msg_id")
+                acked_msg_id = response.payload.acked_msg_id
                 async with unacked_lock:
                     if acked_msg_id in unacked_messages:
                         unacked_messages.pop(acked_msg_id, None)
@@ -52,7 +50,7 @@ async def receiver_loop(
                 chat_ready_event.set()
 
             elif response_type == "CLOSE":
-                closed_sid = response.get("session_id")
+                closed_sid = response.session_id
                 print(f"\n[CLOSE] Sesja {closed_sid} zostala zamknieta")
                 stop_event.set()
                 break
@@ -61,7 +59,7 @@ async def receiver_loop(
                 writer.write(encode_message(pong_frame))
                 await writer.drain()
             elif response_type == "ERROR":
-                print(f"\n[ERROR] {response.get('details', 'Nieznany blad')}")
+                print(f"\n[ERROR] {response.details}")
 
         except (asyncio.IncompleteReadError, ConnectionError, OSError):
             print("\n[SYSTEM] Utracono polaczenie z serwerem.")

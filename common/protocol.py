@@ -1,26 +1,41 @@
-"""
-Wspólny moduł do enkodowania/dekodowania wiadomości JSON
-"""
+"""Wspólny moduł do enkodowania i dekodowania wiadomości JSON."""
+
+from __future__ import annotations
 
 import json
-from typing import Tuple, Dict, Any
+from typing import Any, Tuple
+
+from pydantic import BaseModel, ValidationError
+
+from .models import IncomingMessageModels, ProtocolMessage
 
 
-def decode_message(data: bytes) -> Tuple[bool, Dict[str, Any]]:
+def decode_message(data: bytes) -> Tuple[bool, ProtocolMessage | None]:
     """
-    Dekoduje wiadomość z bajtów na słownik JSON.
+    Dekoduje wiadomość z bajtów i waliduje ją przez Pydantic.
 
     Returns:
-        (success, message_dict) - success True jeśli dekodowanie się powiodło
+        (success, message) - success True jeśli dekodowanie i walidacja się powiodły.
     """
     try:
-        message_str = data.decode('utf-8')
+        message_str = data.decode("utf-8")
         message_json = json.loads(message_str)
-        return True, message_json
     except (json.JSONDecodeError, UnicodeDecodeError):
-        return False, {}
+        return False, None
+
+    for model in IncomingMessageModels:
+        try:
+            return True, model.model_validate(message_json)
+        except ValidationError:
+            continue
+
+    return False, None
 
 
-def encode_message(message: Dict[str, Any]) -> bytes:
-    """Koduje słownik na JSON, dodaje znak nowej linii i zwraca bajty"""
-    return (json.dumps(message) + '\n').encode('utf-8')
+def encode_message(message: ProtocolMessage | BaseModel | dict[str, Any]) -> bytes:
+    """Koduje model Pydantic albo słownik do JSON i dodaje znak nowej linii."""
+    if isinstance(message, BaseModel):
+        payload = message.model_dump(mode="json", exclude_none=True)
+    else:
+        payload = message
+    return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")

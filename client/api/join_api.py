@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from common.config import BUFFER_SIZE
+from common.models import JoinFrame
 
 
 async def send_join(
@@ -11,12 +11,7 @@ async def send_join(
     encode_message,
     decode_message,
 ) -> bool:
-    join_message = {
-        "type": "JOIN",
-        "session_id": session_id,
-        "msg_id": "msg_002",
-        "timestamp": int(time.time()),
-    }
+    join_message = JoinFrame(session_id=session_id, msg_id="msg_002", timestamp=int(time.time()))
 
     print(f"\n-> Wysylam JOIN dla sesji {session_id}...")
     writer.write(encode_message(join_message))
@@ -37,12 +32,16 @@ async def send_join(
         print("X Blad: Niepoprawna odpowiedz serwera")
         return False
 
-    if response.get("type") == "ERROR":
-        print(f"X Blad serwera: {response.get('details', 'Nieznany blad')}")
+    if response is None:
+        print("X Blad: Niepoprawna odpowiedz serwera")
         return False
 
-    if response.get("type") != "JOIN_OK":
-        print(f"X Blad: Oczekiwano JOIN_OK, otrzymano {response.get('type')}")
+    if response.type == "ERROR":
+        print(f"X Blad serwera: {response.details}")
+        return False
+
+    if response.type != "JOIN_OK":
+        print(f"X Blad: Oczekiwano JOIN_OK, otrzymano {response.type}")
         return False
 
     print(f"OK Dolaczono do sesji: {session_id}")

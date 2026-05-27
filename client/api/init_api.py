@@ -2,7 +2,7 @@ import asyncio
 import time
 from typing import Optional
 
-from common.config import BUFFER_SIZE
+from common.models import InitFrame
 
 
 async def send_init(
@@ -11,11 +11,7 @@ async def send_init(
     encode_message,
     decode_message,
 ) -> Optional[str]:
-    init_message = {
-        "type": "INIT",
-        "msg_id": "msg_001",
-        "timestamp": int(time.time()),
-    }
+    init_message = InitFrame(msg_id="msg_001", timestamp=int(time.time()))
 
     print("\n-> Wysylam INIT...")
     writer.write(encode_message(init_message))
@@ -32,11 +28,11 @@ async def send_init(
         return None
 
     success, response = decode_message(data)
-    if not success or response.get("type") != "INIT_OK":
-        details = response.get("details", "Niepoprawna odpowiedz serwera")
+    if not success or response is None or response.type != "INIT_OK":
+        details = getattr(response, "details", "Niepoprawna odpowiedz serwera")
         print(f"X Blad: {details}")
         return None
 
-    session_id = response.get("session_id")
+    session_id = response.session_id
     print(f"OK Sesja utworzona: {session_id}")
     return session_id
