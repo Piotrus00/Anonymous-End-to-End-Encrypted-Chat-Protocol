@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from common.config import BUFFER_SIZE
-from common.errors import ERROR_BAD_JSON
+from common.config import BUFFER_SIZE, MAX_MESSAGE_SIZE
+from common.errors import ERROR_BAD_JSON, ERROR_MESSAGE_TOO_LARGE
 from response_builder import error
 from message_dispatcher import dispatch
 
@@ -19,6 +19,15 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
                 data = conn.recv(BUFFER_SIZE)
                 if not data:
                     break
+
+                if len(data) > MAX_MESSAGE_SIZE:
+                    print(f"[{addr}] Odrzucono wiadomosc: przekroczono rozmiar ({len(data)} bajtow)")
+                    response = error(
+                        code=ERROR_MESSAGE_TOO_LARGE,
+                        details="Wiadomosc jest zbyt duza",
+                    )
+                    conn.sendall(encode_message(response))
+                    break  # Zrywamy połączenie z klientem przekraczającym limit
 
                 success, message_json = decode_message(data)
                 if not success:
