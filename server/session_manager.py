@@ -7,6 +7,8 @@ import time
 import uuid
 from typing import Dict, List, Optional, Tuple
 
+from common.config import RATE_LIMIT_MESSAGES
+
 
 class SessionManager:
     """Zarządzanie sesjami: session_id -> lista adresów klientów."""
@@ -23,7 +25,7 @@ class SessionManager:
             self.client_status[client_addr] = {
                 "last_activity_time": time.monotonic(),
                 "missed_pings_count": 0,
-                "tokens_available": 0.0,  # Token Bucket algorithm
+                "tokens_available": float(RATE_LIMIT_MESSAGES),  # Token Bucket - pełne wiaderko
                 "last_refill_time": time.monotonic(),  # Token Bucket algorithm
             }
 

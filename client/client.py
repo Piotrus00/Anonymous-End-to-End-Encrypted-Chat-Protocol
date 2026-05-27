@@ -46,8 +46,8 @@ class ChatClient:
         await self.chat_ready_event.wait()
         print("\nMozesz wysylac MSG. Wpisz 'exit' aby wyslac CLOSE i zakonczyc.")
 
-        # Token Bucket algorithm variables
-        local_tokens_available: float = 0.0
+        # Token Bucket algorithm variables - inicjalizuj bucket na pełną pojemność
+        local_tokens_available: float = float(RATE_LIMIT_MESSAGES)
         local_last_refill_time: float = time.monotonic()
 
         while not self.stop_event.is_set():
