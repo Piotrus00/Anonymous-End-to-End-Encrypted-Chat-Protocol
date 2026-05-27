@@ -1,11 +1,15 @@
 from typing import Dict, Any, Optional
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from handlers.init_handler import handle_init
 from handlers.join_handler import handle_join
 from handlers.msg_handler import handle_msg
 from handlers.close_handler import handle_close
 from handlers.pong_handler import handle_pong
 from response_builder import error
+from common.errors import ERROR_UNKNOWN_TYPE
 
 message_handlers = {
     "INIT": handle_init,
@@ -21,7 +25,7 @@ def dispatch(message_json: Dict[str, Any], addr: tuple, conn: object, session_ma
 
     if not handler:
         response = error(
-            code="ERROR_UNKNOWN_TYPE",
+            code=ERROR_UNKNOWN_TYPE,
             details=f"Nieznany typ wiadomosci: {message_type}",
         )
         conn.sendall(encode_message(response))

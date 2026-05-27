@@ -1,5 +1,10 @@
 from typing import Dict, Any
-from response_builder import close_notice, error
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from server.response_builder import close_notice, error
+from common.errors import ERROR_MISSING_FIELD, ERROR_SESSION_INVALID
 
 REQUIRED_CLOSE_FIELDS = ("type", "session_id", "msg_id", "timestamp")
 
@@ -7,7 +12,7 @@ def handle_close(message_json: Dict[str, Any], conn: object, session_manager, en
     missing_fields = [field for field in REQUIRED_CLOSE_FIELDS if field not in message_json]
     if missing_fields:
         response = error(
-            code="ERROR_MISSING_FIELD",
+            code=ERROR_MISSING_FIELD,
             details=f"Brak wymaganych pol CLOSE: {', '.join(missing_fields)}",
         )
         conn.sendall(encode_message(response))
@@ -17,7 +22,7 @@ def handle_close(message_json: Dict[str, Any], conn: object, session_manager, en
     participants_conns = session_manager.close_session_and_get_connections(close_session_id)
     if not participants_conns:
         response = error(
-            code="ERROR_SESSION_INVALID",
+            code=ERROR_SESSION_INVALID,
             details=f"Sesja {close_session_id} nie istnieje lub jest juz zamknieta",
         )
         conn.sendall(encode_message(response))

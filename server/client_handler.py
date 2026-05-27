@@ -1,6 +1,11 @@
 from typing import Optional
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.config import BUFFER_SIZE
+from common.errors import ERROR_BAD_JSON
+from response_builder import error
 from message_dispatcher import dispatch
 
 def handle_client(conn, addr, session_manager, decode_message, encode_message) -> None:
@@ -18,7 +23,12 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
                 success, message_json = decode_message(data)
                 if not success:
                     print(f"[{addr}] Blad: Otrzymano niepoprawny JSON")
-                    break
+                    response = error(
+                        code=ERROR_BAD_JSON,
+                        details="Niepoprawny format wiadomosci JSON",
+                    )
+                    conn.sendall(encode_message(response))
+                    continue
 
                 session_manager.update_client_activity(addr)
 

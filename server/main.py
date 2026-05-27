@@ -10,6 +10,7 @@ from response_builder import ping, error
 
 from client_handler import handle_client
 from common.config import HOST, PORT, KEEP_ALIVE_INTERVAL, MAX_MISSED_PINGS
+from common.errors import ERROR_DISCONNECTED
 from session_manager import SessionManager
 
 session_manager = SessionManager()
@@ -35,7 +36,7 @@ def keep_alive_loop(manager: SessionManager, encode_message_func):
                             if peer_conn:
                                 try:
                                     error_message = error(
-                                        code="ERROR_DISCONNECTED",
+                                        code=ERROR_DISCONNECTED,
                                         details="Drugi uczestnik utracil polaczenie",
                                     )
                                     peer_conn.sendall(encode_message_func(error_message))

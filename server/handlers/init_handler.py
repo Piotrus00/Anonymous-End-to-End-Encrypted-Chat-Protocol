@@ -1,5 +1,5 @@
 from typing import Dict, Any, Tuple
-from response_builder import init_ok
+from server.response_builder import init_ok
 
 def handle_init(message_json: Dict[str, Any], addr: tuple, conn: object, session_manager, encode_message) -> str:
     created_session_id = session_manager.create_session(addr)
