@@ -1,10 +1,11 @@
 import sys
 import threading
+import struct
 from pathlib import Path
 from typing import Dict
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from common.config import BUFFER_SIZE
+from common.protocol import read_exactly
 from api.pong_api import build_pong_frame
 from api.ack_api import build_ack_frame
 
@@ -12,9 +13,18 @@ def start_receiver(sock, encode_message, decode_message, unacked_messages: Dict[
     def _receiver_loop():
         while True:
             try:
-                data = sock.recv(BUFFER_SIZE)
+                # Etap 1: Odczytaj 4-bajtowy nagłówek z długością wiadomości
+                header_bytes = read_exactly(sock, 4)
+                if not header_bytes:
+                    break
+                
+                message_length = struct.unpack('!I', header_bytes)[0]
+
+                # Etap 2: Odczytaj właściwą wiadomość o zadeklarowanej długości
+                data = read_exactly(sock, message_length)
                 if not data:
                     break
+
                 success, response = decode_message(data)
                 if not success:
                     continue
@@ -49,7 +59,7 @@ def start_receiver(sock, encode_message, decode_message, unacked_messages: Dict[
                     sock.sendall(encode_message(pong_frame))
                 elif response_type == "ERROR":
                     print(f"\n[ERROR] {response.get('details', 'Nieznany blad')}")
-            except OSError:
+            except (OSError, ConnectionError):
                 break
 
     thread = threading.Thread(target=_receiver_loop, daemon=True)
