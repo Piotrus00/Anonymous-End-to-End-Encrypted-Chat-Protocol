@@ -62,7 +62,7 @@ async def keep_alive_loop(manager: SessionManager, encode_message_func):
                     await manager.remove_from_session(client_addr, session_to_notify)
                 continue
 
-            if time.time() - status["last_activity_time"] > KEEP_ALIVE_INTERVAL:
+            if time.monotonic() - status["last_activity_time"] > KEEP_ALIVE_INTERVAL:
                 writer_to_ping = None
                 async with manager.lock:
                     if client_addr in manager.writers:

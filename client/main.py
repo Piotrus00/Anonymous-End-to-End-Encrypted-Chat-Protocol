@@ -19,7 +19,7 @@ async def check_ack_timeouts(stop_event: asyncio.Event):
         await asyncio.sleep(1)
         async with unacked_lock:
             for msg_id, sent_time in list(unacked_messages.items()):
-                if time.time() - sent_time > ACK_TIMEOUT:
+                if time.monotonic() - sent_time > ACK_TIMEOUT:
                     print(f"\n[SYSTEM] Nie otrzymano potwierdzenia dla wiadomosci {msg_id}")
                     unacked_messages.pop(msg_id, None)
 
@@ -46,7 +46,7 @@ async def user_input_loop(
             if not text:
                 continue
 
-            current_time = time.time()
+            current_time = time.monotonic()
             local_message_timestamps = [ts for ts in local_message_timestamps if current_time - ts <= RATE_LIMIT_WINDOW]
 
             if len(local_message_timestamps) >= RATE_LIMIT_MESSAGES:

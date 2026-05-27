@@ -21,7 +21,7 @@ class SessionManager:
         async with self.lock:
             self.writers[client_addr] = writer
             self.client_status[client_addr] = {
-                "last_activity_time": time.time(),
+                "last_activity_time": time.monotonic(),
                 "missed_pings_count": 0,
                 "message_timestamps": [],
             }
@@ -34,7 +34,7 @@ class SessionManager:
     async def update_client_activity(self, client_addr) -> None:
         async with self.lock:
             if client_addr in self.client_status:
-                self.client_status[client_addr]["last_activity_time"] = time.time()
+                self.client_status[client_addr]["last_activity_time"] = time.monotonic()
                 self.client_status[client_addr]["missed_pings_count"] = 0
 
     async def check_and_update_rate_limit(self, client_addr: tuple, limit: int, window: int) -> bool:
@@ -43,7 +43,7 @@ class SessionManager:
             if client_addr not in self.client_status:
                 return False
 
-            current_time = time.time()
+            current_time = time.monotonic()
             timestamps = self.client_status[client_addr]["message_timestamps"]
 
             # Usuń stare timestampy
