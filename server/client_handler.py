@@ -1,11 +1,7 @@
 from typing import Optional
 
 from common.config import BUFFER_SIZE
-from response_builder import close_notice, error, init_ok, join_ok
-
-REQUIRED_MSG_FIELDS = ("type", "session_id", "msg_id", "timestamp")
-REQUIRED_CLOSE_FIELDS = ("type", "session_id", "msg_id", "timestamp")
-
+from message_dispatcher import dispatch
 
 def handle_client(conn, addr, session_manager, decode_message, encode_message) -> None:
     print(f"[NOWE POLACZENIE] Polaczono z {addr}")
@@ -26,122 +22,14 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
 
                 session_manager.update_client_activity(addr)
 
-                message_type = message_json.get("type")
                 print(f"[{addr}] Otrzymano: {message_json}")
 
-                if message_type == "INIT":
-                    created_session_id = session_manager.create_session(addr)
-                    session_id = created_session_id
-                    response = init_ok(
-                        session_id=created_session_id,
-                        msg_id=message_json.get("msg_id"),
-                        timestamp=message_json.get("timestamp"),
-                    )
-                    conn.sendall(encode_message(response))
-                    print(f"[INIT OK] Utworzona sesja {created_session_id} dla {addr}")
-
-                elif message_type == "JOIN":
-                    join_session_id = message_json.get("session_id")
-                    if not join_session_id:
-                        response = error(
-                            code="ERROR_MISSING_FIELD",
-                            details="Brak pola 'session_id' w JOIN",
-                        )
-                        conn.sendall(encode_message(response))
-                        print(f"[JOIN FAIL] {addr} - brak session_id")
-                    else:
-                        joined, reason = session_manager.join_session(join_session_id, addr)
-                        if joined:
-                            session_id = join_session_id
-                            response = join_ok(
-                                session_id=join_session_id,
-                                msg_id=message_json.get("msg_id"),
-                                timestamp=message_json.get("timestamp"),
-                            )
-                            conn.sendall(encode_message(response))
-                            print(f"[JOIN OK] {addr} dolaczyl do sesji {join_session_id}")
-                        else:
-                            response = error(
-                                code="ERROR_SESSION_INVALID",
-                                details=reason,
-                            )
-                            conn.sendall(encode_message(response))
-                            print(f"[JOIN FAIL] {addr} - {reason}")
-
-                elif message_type == "MSG":
-                    missing_fields = [field for field in REQUIRED_MSG_FIELDS if field not in message_json]
-                    if missing_fields:
-                        response = error(
-                            code="ERROR_MISSING_FIELD",
-                            details=f"Brak wymaganych pol MSG: {', '.join(missing_fields)}",
-                        )
-                        conn.sendall(encode_message(response))
-                        continue
-
-                    msg_session_id = message_json.get("session_id")
-                    peer_conn = session_manager.get_peer_connection(msg_session_id, addr)
-                    if peer_conn is None:
-                        response = error(
-                            code="ERROR_PEER_NOT_CONNECTED",
-                            details="Drugi uczestnik sesji nie jest polaczony",
-                        )
-                        conn.sendall(encode_message(response))
-                        continue
-
-                    try:
-                        peer_conn.sendall(encode_message(message_json))
-                        print(f"[MSG RELAY] {addr} -> session {msg_session_id}")
-                    except OSError:
-                        response = error(
-                            code="ERROR_DELIVERY_FAILED",
-                            details="Nie udalo sie dostarczyc wiadomosci",
-                        )
-                        conn.sendall(encode_message(response))
-
-                elif message_type == "CLOSE":
-                    missing_fields = [field for field in REQUIRED_CLOSE_FIELDS if field not in message_json]
-                    if missing_fields:
-                        response = error(
-                            code="ERROR_MISSING_FIELD",
-                            details=f"Brak wymaganych pol CLOSE: {', '.join(missing_fields)}",
-                        )
-                        conn.sendall(encode_message(response))
-                        continue
-
-                    close_session_id = message_json.get("session_id")
-                    participants_conns = session_manager.close_session_and_get_connections(close_session_id)
-                    if not participants_conns:
-                        response = error(
-                            code="ERROR_SESSION_INVALID",
-                            details=f"Sesja {close_session_id} nie istnieje lub jest juz zamknieta",
-                        )
-                        conn.sendall(encode_message(response))
-                        continue
-
-                    notice = close_notice(
-                        session_id=close_session_id,
-                        msg_id=message_json.get("msg_id"),
-                        timestamp=message_json.get("timestamp"),
-                    )
-
-                    for participant_conn in participants_conns:
-                        try:
-                            participant_conn.sendall(encode_message(notice))
-                        except OSError:
-                            pass
-
-                    print(f"[CLOSE OK] Zamknieto sesje {close_session_id}")
+                result = dispatch(message_json, addr, conn, session_manager, encode_message)
+                
+                if result == "CLOSE":
                     break
-
-                elif message_type == "PONG":
-                    pass
-
-                else:
-                    response = error(
-                        code="ERROR_UNKNOWN_TYPE",
-                        details=f"Nieznany typ wiadomosci: {message_type}",
-                    )
-                    conn.sendall(encode_message(response))
+                elif result is not None:
+                    session_id = result
 
             except ConnectionResetError:
                 break
