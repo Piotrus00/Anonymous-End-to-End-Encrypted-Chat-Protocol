@@ -5,6 +5,7 @@ from ..response_builder import join_ok, error
 from common.errors import ERROR_SESSION_INVALID
 from ..session_manager import SessionManager
 from common.models import JoinFrame
+from common.protocol import encode_message
 
 
 async def handle_join(
@@ -12,7 +13,6 @@ async def handle_join(
     addr: tuple,
     writer: asyncio.StreamWriter,
     session_manager: SessionManager,
-    encode_message,
 ) -> Optional[str]:
     join_session_id = message_json.session_id
 

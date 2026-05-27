@@ -5,14 +5,13 @@ from common.errors import ERROR_BAD_JSON, ERROR_MESSAGE_TOO_LARGE, ERROR_RATE_LI
 from .response_builder import error
 from .message_dispatcher import dispatch
 from .session_manager import SessionManager
+from common.protocol import decode_message, encode_message
 
 
 async def handle_client(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
     session_manager: SessionManager,
-    decode_message,
-    encode_message,
 ) -> None:
     addr = writer.get_extra_info("peername")
     print(f"[NOWE POLACZENIE] Polaczono z {addr}")
@@ -61,7 +60,7 @@ async def handle_client(
 
             print(f"[{addr}] Otrzymano: {message_json}")
 
-            result = await dispatch(message_json, addr, writer, session_manager, encode_message)
+            result = await dispatch(message_json, addr, writer, session_manager)
 
             if result == "CLOSE":
                 break

@@ -6,6 +6,5 @@ async def handle_pong(
     addr: tuple,
     writer: asyncio.StreamWriter,
     session_manager: Any,
-    encode_message: Any,
 ) -> None:
     pass

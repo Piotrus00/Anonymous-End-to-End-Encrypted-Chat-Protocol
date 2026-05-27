@@ -13,7 +13,7 @@ from .session_manager import SessionManager
 session_manager = SessionManager()
 
 
-async def keep_alive_loop(manager: SessionManager, encode_message_func):
+async def keep_alive_loop(manager: SessionManager):
     """Periodically pings inactive clients and disconnects timed-out ones."""
     while True:
         await asyncio.sleep(KEEP_ALIVE_INTERVAL)
@@ -35,7 +35,7 @@ async def keep_alive_loop(manager: SessionManager, encode_message_func):
                                 code=ERROR_DISCONNECTED,
                                 details="Drugi uczestnik utracil polaczenie z powodu braku aktywonsci.",
                             )
-                            peer_writer.write(encode_message_func(error_message))
+                            peer_writer.write(encode_message(error_message))
                             await peer_writer.drain()
                         except (ConnectionError, OSError):
                             pass
@@ -52,7 +52,7 @@ async def keep_alive_loop(manager: SessionManager, encode_message_func):
                 if writer_to_ping:
                     try:
                         ping_message = ping(msg_id="ping_123", timestamp=int(time.time()))
-                        writer_to_ping.write(encode_message_func(ping_message))
+                        writer_to_ping.write(encode_message(ping_message))
                         await writer_to_ping.drain()
                         await manager.increment_missed_pings(client_addr)
                         print(f"[PING] Wyslano PING do {client_addr}")
@@ -65,16 +65,14 @@ async def main():
     """Main entry point for the asyncio server."""
     handler = partial(
         handle_client,
-        session_manager=session_manager,
-        decode_message=decode_message,
-        encode_message=encode_message,
+        session_manager=session_manager
     )
 
     server = await asyncio.start_server(handler, HOST, PORT)
 
     print(f"[START] Serwer nasluchuje na {HOST}:{PORT}")
 
-    asyncio.create_task(keep_alive_loop(session_manager, encode_message))
+    asyncio.create_task(keep_alive_loop(session_manager))
 
     async with server:
         await server.serve_forever()

@@ -10,6 +10,7 @@ from .handlers.ack_handler import handle_ack
 from .response_builder import error
 from common.errors import ERROR_UNKNOWN_TYPE
 from common.models import ProtocolMessage
+from common.protocol import encode_message
 
 message_handlers: dict[str, Any] = {
     "INIT": handle_init,
@@ -25,7 +26,6 @@ async def dispatch(
     addr: tuple,
     writer: asyncio.StreamWriter,
     session_manager,
-    encode_message,
 ) -> Optional[str]:
     message_type = message_json.type
     handler = message_handlers.get(message_type)
@@ -39,7 +39,7 @@ async def dispatch(
         await writer.drain()
         return None
 
-    result = await handler(message_json, addr, writer, session_manager, encode_message)
+    result = await handler(message_json, addr, writer, session_manager)
 
     match message_type:
         case "INIT" | "JOIN":

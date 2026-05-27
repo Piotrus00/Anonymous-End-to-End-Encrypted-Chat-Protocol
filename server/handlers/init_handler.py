@@ -2,6 +2,7 @@ import asyncio
 from server.response_builder import init_ok
 from server.session_manager import SessionManager
 from common.models import InitFrame
+from common.protocol import encode_message
 
 
 async def handle_init(
@@ -9,7 +10,6 @@ async def handle_init(
     addr: tuple,
     writer: asyncio.StreamWriter,
     session_manager: SessionManager,
-    encode_message,
 ) -> str:
     created_session_id = await session_manager.create_session(addr)
     response = init_ok(

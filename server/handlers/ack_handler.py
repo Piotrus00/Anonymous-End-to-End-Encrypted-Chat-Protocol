@@ -2,6 +2,7 @@ import asyncio
 
 from ..session_manager import SessionManager
 from common.models import AckFrame
+from common.protocol import encode_message
 
 
 async def handle_ack(
@@ -9,7 +10,6 @@ async def handle_ack(
     addr: tuple,
     writer: asyncio.StreamWriter,
     session_manager: SessionManager,
-    encode_message,
 ) -> None:
     msg_session_id = message_json.session_id
     peer_writer = await session_manager.get_peer_writer(msg_session_id, addr)
