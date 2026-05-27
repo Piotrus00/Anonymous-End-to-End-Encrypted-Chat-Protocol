@@ -17,15 +17,14 @@ async def handle_client(
 ) -> None:
     addr = writer.get_extra_info("peername")
     print(f"[NOWE POLACZENIE] Polaczono z {addr}")
-    session_id: Optional[str] = None
     await session_manager.register_connection(addr, writer)
 
     try:
         while True:
             try:
                 message_bytes = await reader.readuntil(b'\n')
-            except asyncio.IncompleteReadError:
-                # Client disconnected cleanly
+            except (asyncio.IncompleteReadError, ConnectionResetError, ConnectionError):
+                # Client disconnected
                 break
 
             if len(message_bytes) > MAX_MESSAGE_SIZE:
@@ -67,22 +66,21 @@ async def handle_client(
 
             if result == "CLOSE":
                 break
-            # If dispatch returns a session_id, store it but continue the loop
-            elif result is not None and result != "CLOSE":
-                session_id = result
 
-    except (ConnectionResetError, ConnectionError):
-        print(f"[{addr}] Blad polaczenia.")
+    except Exception as e:
+        print(f"[{addr}] Niespodziewany blad: {e}")
     finally:
+        session_id = await session_manager.find_session_by_addr(addr)
         if session_id:
             await session_manager.remove_from_session(addr, session_id)
+            print(f"[ROZLACZONO] {addr} (sesja: {session_id})")
+        else:
+            print(f"[ROZLACZONO] {addr}")
 
         await session_manager.unregister_connection(addr)
         if writer:
             writer.close()
-            await writer.wait_closed()
-
-        if session_id:
-            print(f"[ROZLACZONO] {addr} (sesja: {session_id})")
-        else:
-            print(f"[ROZLACZONO] {addr}")
+            try:
+                await writer.wait_closed()
+            except (ConnectionError, OSError):
+                pass

@@ -111,6 +111,14 @@ class SessionManager:
 
             return True
 
+    async def find_session_by_addr(self, client_addr: tuple) -> Optional[str]:
+        """Znajduje session_id na podstawie adresu klienta."""
+        async with self.lock:
+            for session_id, participants in self.sessions.items():
+                if client_addr in participants:
+                    return session_id
+        return None
+
     async def get_peer_writer(self, session_id: str, sender_addr) -> Optional[asyncio.StreamWriter]:
         """Zwraca writer drugiego uczestnika sesji albo None."""
         async with self.lock:
