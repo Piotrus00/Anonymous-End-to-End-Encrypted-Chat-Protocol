@@ -3,11 +3,42 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Tuple
+from typing import Annotated, Any, Tuple, TypeAlias
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, RootModel, ValidationError
 
-from .models import IncomingMessageModels, ProtocolMessage
+from .models import (
+    AckFrame,
+    CloseNoticeFrame,
+    CloseRequestFrame,
+    ErrorFrame,
+    InitFrame,
+    InitOkFrame,
+    JoinFrame,
+    JoinOkFrame,
+    MsgFrame,
+    PingFrame,
+    PongFrame,
+    ProtocolMessage,
+)
+
+
+IncomingDiscriminatedMessage: TypeAlias = (
+    InitFrame
+    | JoinFrame
+    | MsgFrame
+    | AckFrame
+    | CloseNoticeFrame
+    | InitOkFrame
+    | JoinOkFrame
+    | PingFrame
+    | PongFrame
+    | ErrorFrame
+)
+
+
+class MessageAdapter(RootModel):
+    root: Annotated[IncomingDiscriminatedMessage, Field(discriminator="type")]
 
 
 def decode_message(data: bytes) -> Tuple[bool, ProtocolMessage | None]:
@@ -20,16 +51,28 @@ def decode_message(data: bytes) -> Tuple[bool, ProtocolMessage | None]:
     try:
         message_str = data.decode("utf-8")
         message_json = json.loads(message_str)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+        obj = MessageAdapter.model_validate(message_json)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValidationError):
         return False, None
 
-    for model in IncomingMessageModels:
-        try:
-            return True, model.model_validate(message_json)
-        except ValidationError:
-            continue
+    if not isinstance(message_json, dict):
+        return False, None
 
-    return False, None
+    message = obj.root
+
+    # Rozróżniamy CLOSE request (bez payload) od CLOSE notice (z payload),
+    # bo oba używają tego samego discriminatora "type".
+    if isinstance(message, CloseNoticeFrame) and "payload" not in message_json:
+        return (
+            True,
+            CloseRequestFrame(
+                msg_id=message.msg_id,
+                timestamp=message.timestamp,
+                session_id=message.session_id,
+            ),
+        )
+
+    return True, message
 
 
 def encode_message(message: ProtocolMessage | BaseModel | dict[str, Any]) -> bytes:
