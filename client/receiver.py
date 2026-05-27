@@ -10,19 +10,20 @@ from api.ack_api import build_ack_frame
 
 def start_receiver(sock, encode_message, decode_message, unacked_messages: Dict[str, float], unacked_lock: threading.Lock) -> threading.Thread:
     def _receiver_loop():
-        buffer = ""
-        while True:
+        buffer = b""
+        connection_open = True
+        while connection_open:
             try:
                 data = sock.recv(BUFFER_SIZE)
                 if not data:
                     break
                 
-                buffer += data.decode('utf-8')
+                buffer += data
 
-                while '\n' in buffer:
-                    message_str, buffer = buffer.split('\n', 1)
+                while b'\n' in buffer:
+                    message_bytes, buffer = buffer.split(b'\n', 1)
 
-                    success, response = decode_message(message_str.encode('utf-8'))
+                    success, response = decode_message(message_bytes)
                     if not success:
                         continue
 
@@ -50,6 +51,7 @@ def start_receiver(sock, encode_message, decode_message, unacked_messages: Dict[
                     elif response_type == "CLOSE":
                         closed_sid = response.get("session_id")
                         print(f"\n[CLOSE] Sesja {closed_sid} zostala zamknieta")
+                        connection_open = False
                         break
                     elif response_type == "PING":
                         pong_frame = build_pong_frame()
@@ -57,9 +59,6 @@ def start_receiver(sock, encode_message, decode_message, unacked_messages: Dict[
                     elif response_type == "ERROR":
                         print(f"\n[ERROR] {response.get('details', 'Nieznany blad')}")
                 
-                if response_type == "CLOSE":
-                    break
-
             except (OSError, ConnectionError, UnicodeDecodeError):
                 break
 

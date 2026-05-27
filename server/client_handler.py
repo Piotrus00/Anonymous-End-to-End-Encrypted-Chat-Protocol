@@ -12,29 +12,29 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
     print(f"[NOWE POLACZENIE] Polaczono z {addr}")
     session_id: Optional[str] = None
     session_manager.register_connection(addr, conn)
-    buffer = ""
+    buffer = b""
+    should_close = False
 
     with conn:
-        while True:
+        while not should_close:
             try:
                 data = conn.recv(BUFFER_SIZE)
                 if not data:
                     break
                 
-                buffer += data.decode('utf-8')
+                buffer += data
                 
-                # Przetwarzaj wszystkie kompletne wiadomości w buforze
-                while '\n' in buffer:
-                    message_str, buffer = buffer.split('\n', 1)
+                while b'\n' in buffer:
+                    message_bytes, buffer = buffer.split(b'\n', 1)
 
-                    if len(message_str.encode('utf-8')) > MAX_MESSAGE_SIZE:
-                        print(f"[{addr}] Odrzucono wiadomosc: przekroczono rozmiar ({len(message_str.encode('utf-8'))} bajtow)")
+                    if len(message_bytes) > MAX_MESSAGE_SIZE:
+                        print(f"[{addr}] Odrzucono wiadomosc: przekroczono rozmiar ({len(message_bytes)} bajtow)")
                         response = error(
                             code=ERROR_MESSAGE_TOO_LARGE,
                             details="Wiadomosc jest zbyt duza",
                         )
                         conn.sendall(encode_message(response))
-                        continue # Przetwarzaj dalej, nie rozłączaj
+                        continue
 
                     if not session_manager.check_and_update_rate_limit(addr, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW):
                         print(f"[{addr}] Przekroczono limit wiadomosci. Odrzucono.")
@@ -45,7 +45,7 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
                         conn.sendall(encode_message(response))
                         continue
 
-                    success, message_json = decode_message(message_str.encode('utf-8'))
+                    success, message_json = decode_message(message_bytes)
                     if not success:
                         print(f"[{addr}] Blad: Otrzymano niepoprawny JSON")
                         response = error(
@@ -62,15 +62,10 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
                     result = dispatch(message_json, addr, conn, session_manager, encode_message)
                     
                     if result == "CLOSE":
-                        # Upewnij się, że pętla zostanie przerwana
-                        buffer = "" # Wyczyść bufor, aby zakończyć pętlę zewnętrzną
+                        should_close = True
                         break
                     elif result is not None:
                         session_id = result
-                
-                if session_id and result == "CLOSE":
-                    break
-
 
             except (ConnectionResetError, ConnectionError, UnicodeDecodeError):
                 break
