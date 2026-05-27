@@ -7,7 +7,7 @@ from typing import Dict
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.protocol import decode_message, encode_message
-from common.config import HOST, PORT, ACK_TIMEOUT
+from common.config import HOST, PORT, ACK_TIMEOUT, MAX_MESSAGE_SIZE
 from api.init_api import send_init
 from api.join_api import send_join
 from api.message_api import build_msg_frame
@@ -43,9 +43,15 @@ def chat_loop(sock, session_id: str, encode_message, decode_message) -> None:
             continue
 
         msg_id, frame = build_msg_frame(session_id, text)
+        encoded_frame = encode_message(frame)
+        
+        if len(encoded_frame) > MAX_MESSAGE_SIZE:
+            print(f"X Wiadomosc jest zbyt dluga ({len(encoded_frame)}/{MAX_MESSAGE_SIZE} bajtow) i nie zostala wyslana.")
+            continue
+
         with unacked_lock:
             unacked_messages[msg_id] = time.time()
-        sock.sendall(encode_message(frame))
+        sock.sendall(encoded_frame)
         print(f"[SYSTEM] Wyslano wiadomosc {msg_id}, oczekiwanie na ACK...")
 
 def main():
