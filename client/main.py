@@ -3,11 +3,11 @@ import sys
 import time
 import threading
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.protocol import decode_message, encode_message
-from common.config import HOST, PORT, ACK_TIMEOUT, MAX_MESSAGE_SIZE
+from common.config import HOST, PORT, ACK_TIMEOUT, MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
 from api.init_api import send_init
 from api.join_api import send_join
 from api.message_api import build_msg_frame
@@ -33,6 +33,8 @@ def chat_loop(sock, session_id: str, encode_message, decode_message) -> None:
     timeout_thread = threading.Thread(target=check_ack_timeouts, daemon=True)
     timeout_thread.start()
 
+    local_message_timestamps: List[float] = []
+
     while True:
         text = input("Ty: ").strip()
         if text.lower() == "exit":
@@ -42,6 +44,14 @@ def chat_loop(sock, session_id: str, encode_message, decode_message) -> None:
         if not text:
             continue
 
+        # Lokalny Rate Limiting
+        current_time = time.time()
+        local_message_timestamps = [ts for ts in local_message_timestamps if current_time - ts <= RATE_LIMIT_WINDOW]
+        
+        if len(local_message_timestamps) >= RATE_LIMIT_MESSAGES:
+            print(f"X Przekroczono limit wiadomosci. Sprobuj ponownie za chwile.")
+            continue
+
         msg_id, frame = build_msg_frame(session_id, text)
         encoded_frame = encode_message(frame)
         
@@ -49,8 +59,11 @@ def chat_loop(sock, session_id: str, encode_message, decode_message) -> None:
             print(f"X Wiadomosc jest zbyt dluga ({len(encoded_frame)}/{MAX_MESSAGE_SIZE} bajtow) i nie zostala wyslana.")
             continue
 
+        local_message_timestamps.append(current_time)
+
         with unacked_lock:
-            unacked_messages[msg_id] = time.time()
+            unacked_messages[msg_id] = current_time
+
         sock.sendall(encoded_frame)
         print(f"[SYSTEM] Wyslano wiadomosc {msg_id}, oczekiwanie na ACK...")
 

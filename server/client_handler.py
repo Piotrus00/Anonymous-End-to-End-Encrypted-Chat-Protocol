@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from common.config import BUFFER_SIZE, MAX_MESSAGE_SIZE
-from common.errors import ERROR_BAD_JSON, ERROR_MESSAGE_TOO_LARGE
+from common.config import BUFFER_SIZE, MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
+from common.errors import ERROR_BAD_JSON, ERROR_MESSAGE_TOO_LARGE, ERROR_RATE_LIMIT_EXCEEDED
 from response_builder import error
 from message_dispatcher import dispatch
 
@@ -27,7 +27,16 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
                         details="Wiadomosc jest zbyt duza",
                     )
                     conn.sendall(encode_message(response))
-                    break  # Zrywamy połączenie z klientem przekraczającym limit
+                    break
+
+                if not session_manager.check_and_update_rate_limit(addr, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW):
+                    print(f"[{addr}] Przekroczono limit wiadomosci. Odrzucono.")
+                    response = error(
+                        code=ERROR_RATE_LIMIT_EXCEEDED,
+                        details="Wysylasz wiadomosci zbyt szybko. Zwolnij.",
+                    )
+                    conn.sendall(encode_message(response))
+                    continue
 
                 success, message_json = decode_message(data)
                 if not success:
