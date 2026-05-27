@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from common.protocol import decode_message, encode_message
 from common.config import ACK_TIMEOUT, MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
@@ -46,7 +46,10 @@ class ChatClient:
         await self.chat_ready_event.wait()
         print("\nMozesz wysylac MSG. Wpisz 'exit' aby wyslac CLOSE i zakonczyc.")
 
-        local_message_timestamps: List[float] = []
+        # Token Bucket algorithm variables
+        local_tokens_available: float = 0.0
+        local_last_refill_time: float = time.monotonic()
+
         while not self.stop_event.is_set():
             try:
                 text = await asyncio.to_thread(input, "Ty: ")
@@ -60,9 +63,19 @@ class ChatClient:
                     continue
 
                 current_time = time.monotonic()
-                local_message_timestamps = [ts for ts in local_message_timestamps if current_time - ts <= RATE_LIMIT_WINDOW]
 
-                if len(local_message_timestamps) >= RATE_LIMIT_MESSAGES:
+                # Token Bucket refill logic
+                refill_rate = RATE_LIMIT_MESSAGES / RATE_LIMIT_WINDOW
+                time_elapsed = current_time - local_last_refill_time
+                tokens_to_add = time_elapsed * refill_rate
+                local_tokens_available = min(
+                    RATE_LIMIT_MESSAGES,  # Max capacity
+                    local_tokens_available + tokens_to_add
+                )
+                local_last_refill_time = current_time
+
+                # Check if we can send a message (need 1 token)
+                if local_tokens_available < 1.0:
                     print("X Przekroczono limit wiadomosci. Sprobuj ponownie za chwile.")
                     continue
 
@@ -73,7 +86,7 @@ class ChatClient:
                     print(f"X Wiadomosc jest zbyt dluga ({len(encoded_frame)}/{MAX_MESSAGE_SIZE} bajtow) i nie zostala wyslana.")
                     continue
 
-                local_message_timestamps.append(current_time)
+                local_tokens_available -= 1.0
 
                 async with self.unacked_lock:
                     self.unacked_messages[msg_id] = current_time

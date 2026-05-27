@@ -23,7 +23,8 @@ class SessionManager:
             self.client_status[client_addr] = {
                 "last_activity_time": time.monotonic(),
                 "missed_pings_count": 0,
-                "message_timestamps": [],
+                "tokens_available": 0.0,  # Token Bucket algorithm
+                "last_refill_time": time.monotonic(),  # Token Bucket algorithm
             }
 
     async def disconnect_client(self, client_addr: tuple) -> None:
@@ -61,22 +62,40 @@ class SessionManager:
                 self.client_status[client_addr]["missed_pings_count"] = 0
 
     async def check_and_update_rate_limit(self, client_addr: tuple, limit: int, window: int) -> bool:
-        """Sprawdza, czy klient nie przekracza limitu wiadomości. Zwraca False, jeśli limit został przekroczony."""
+        """
+        Token Bucket algorithm: Sprawdza, czy klient nie przekracza limitu wiadomości.
+        Zwraca False, jeśli limit został przekroczony.
+        
+        Parametry:
+        - limit: pojemność bucketa (maksymalna liczba tokenów)
+        - window: okres czasu w sekundach dla refill_rate
+        """
         async with self.lock:
             if client_addr not in self.client_status:
                 return False
 
             current_time = time.monotonic()
-            timestamps = self.client_status[client_addr]["message_timestamps"]
-
-            timestamps = [ts for ts in timestamps if current_time - ts <= window]
-
-            if len(timestamps) < limit:
-                timestamps.append(current_time)
-                self.client_status[client_addr]["message_timestamps"] = timestamps
+            status = self.client_status[client_addr]
+            
+            # Refill rate: tokeny na sekundę
+            refill_rate = limit / window
+            
+            # Czas od ostatniego uzupełnienia
+            time_elapsed = current_time - status["last_refill_time"]
+            
+            # Uzupełnij tokeny
+            tokens_to_add = time_elapsed * refill_rate
+            status["tokens_available"] = min(
+                limit,  # Maks. pojemność bucketa
+                status["tokens_available"] + tokens_to_add
+            )
+            status["last_refill_time"] = current_time
+            
+            # Sprawdź, czy można pobrać token
+            if status["tokens_available"] >= 1.0:
+                status["tokens_available"] -= 1.0
                 return True
             else:
-                self.client_status[client_addr]["message_timestamps"] = timestamps
                 return False
 
     async def increment_missed_pings(self, client_addr) -> None:
