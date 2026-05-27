@@ -26,10 +26,33 @@ class SessionManager:
                 "message_timestamps": [],
             }
 
-    async def unregister_connection(self, client_addr) -> None:
+    async def disconnect_client(self, client_addr: tuple) -> None:
+        """Kompleksowo obsługuje rozłączenie klienta."""
         async with self.lock:
-            self.writers.pop(client_addr, None)
+            # Zamknij i usuń writer
+            writer = self.writers.pop(client_addr, None)
+            if writer:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except (ConnectionError, OSError):
+                    pass  # Ignoruj błędy, jeśli połączenie już jest zerwane
+
+            # Usuń status klienta
             self.client_status.pop(client_addr, None)
+
+            # Znajdź i usuń klienta z sesji
+            session_to_remove_from = None
+            for session_id, participants in self.sessions.items():
+                if client_addr in participants:
+                    participants.remove(client_addr)
+                    if not participants:
+                        session_to_remove_from = session_id
+                    break
+            
+            # Jeśli sesja jest pusta, usuń ją
+            if session_to_remove_from:
+                self.sessions.pop(session_to_remove_from, None)
 
     async def update_client_activity(self, client_addr) -> None:
         async with self.lock:
@@ -46,7 +69,6 @@ class SessionManager:
             current_time = time.monotonic()
             timestamps = self.client_status[client_addr]["message_timestamps"]
 
-            # Usuń stare timestampy
             timestamps = [ts for ts in timestamps if current_time - ts <= window]
 
             if len(timestamps) < limit:
@@ -61,14 +83,6 @@ class SessionManager:
         async with self.lock:
             if client_addr in self.client_status:
                 self.client_status[client_addr]["missed_pings_count"] += 1
-
-    async def get_inactive_clients(self, max_missed_pings: int) -> List[tuple]:
-        async with self.lock:
-            inactive_clients = []
-            for client_addr, status in self.client_status.items():
-                if status["missed_pings_count"] >= max_missed_pings:
-                    inactive_clients.append(client_addr)
-            return inactive_clients
 
     async def create_session(self, client_addr) -> str:
         session_id = f"sess_{uuid.uuid4().hex[:12]}"
@@ -98,19 +112,6 @@ class SessionManager:
             self.sessions[session_id].append(client_addr)
             return True, f"Dołączono do sesji {session_id}"
 
-    async def remove_from_session(self, client_addr, session_id: str) -> bool:
-        """Usuwa klienta z sesji i usuwa sesję, jeśli nie ma już uczestników."""
-        async with self.lock:
-            participants = self.sessions.get(session_id)
-            if not participants or client_addr not in participants:
-                return False
-
-            participants.remove(client_addr)
-            if not participants:
-                self.sessions.pop(session_id, None)
-
-            return True
-
     async def find_session_by_addr(self, client_addr: tuple) -> Optional[str]:
         """Znajduje session_id na podstawie adresu klienta."""
         async with self.lock:
@@ -131,17 +132,3 @@ class SessionManager:
                     return self.writers.get(participant_addr)
 
             return None
-
-    async def close_session_and_get_writers(self, session_id: str) -> List[asyncio.StreamWriter]:
-        """Unieważnia sesje i zwraca aktywne writery uczestnikow tej sesji."""
-        async with self.lock:
-            participants = self.sessions.pop(session_id, None)
-            if not participants:
-                return []
-
-            result = []
-            for participant_addr in participants:
-                writer = self.writers.get(participant_addr)
-                if writer is not None:
-                    result.append(writer)
-            return result

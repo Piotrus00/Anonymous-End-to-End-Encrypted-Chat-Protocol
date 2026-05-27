@@ -1,5 +1,4 @@
 import asyncio
-from typing import Optional
 
 from common.config import MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
 from common.errors import ERROR_BAD_JSON, ERROR_MESSAGE_TOO_LARGE, ERROR_RATE_LIMIT_EXCEEDED
@@ -70,17 +69,5 @@ async def handle_client(
     except Exception as e:
         print(f"[{addr}] Niespodziewany blad: {e}")
     finally:
-        session_id = await session_manager.find_session_by_addr(addr)
-        if session_id:
-            await session_manager.remove_from_session(addr, session_id)
-            print(f"[ROZLACZONO] {addr} (sesja: {session_id})")
-        else:
-            print(f"[ROZLACZONO] {addr}")
-
-        await session_manager.unregister_connection(addr)
-        if writer:
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except (ConnectionError, OSError):
-                pass
+        print(f"[ROZLACZONO] {addr}")
+        await session_manager.disconnect_client(addr)

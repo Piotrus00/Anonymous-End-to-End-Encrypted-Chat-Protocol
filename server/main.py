@@ -24,42 +24,23 @@ async def keep_alive_loop(manager: SessionManager, encode_message_func):
 
         for client_addr, status in clients_snapshot:
             if status["missed_pings_count"] >= MAX_MISSED_PINGS:
-                print(f"[TIMEOUT] Klient {client_addr} przekroczyl limit odpowiedzi.")
-
-                writer_to_close = None
-                async with manager.lock:
-                    writer_to_close = manager.writers.get(client_addr)
-
-                if writer_to_close:
-                    writer_to_close.close()
-                    try:
-                        await writer_to_close.wait_closed()
-                    except (ConnectionError, OSError):
-                        pass
-
-                await manager.unregister_connection(client_addr)
-
-                session_to_notify = None
-                async with manager.lock:
-                    for session_id, participants in manager.sessions.items():
-                        if client_addr in participants:
-                            session_to_notify = session_id
-                            break
-
-                if session_to_notify:
-                    peer_writer = await manager.get_peer_writer(session_to_notify, client_addr)
+                print(f"[TIMEOUT] Klient {client_addr} przekroczyl limit odpowiedzi. Rozlaczanie.")
+                
+                session_id = await manager.find_session_by_addr(client_addr)
+                if session_id:
+                    peer_writer = await manager.get_peer_writer(session_id, client_addr)
                     if peer_writer:
                         try:
                             error_message = error(
                                 code=ERROR_DISCONNECTED,
-                                details="Drugi uczestnik utracil polaczenie",
+                                details="Drugi uczestnik utracil polaczenie z powodu braku aktywonsci.",
                             )
                             peer_writer.write(encode_message_func(error_message))
                             await peer_writer.drain()
                         except (ConnectionError, OSError):
                             pass
-
-                    await manager.remove_from_session(client_addr, session_to_notify)
+                
+                await manager.disconnect_client(client_addr)
                 continue
 
             if time.monotonic() - status["last_activity_time"] > KEEP_ALIVE_INTERVAL:
@@ -76,6 +57,7 @@ async def keep_alive_loop(manager: SessionManager, encode_message_func):
                         await manager.increment_missed_pings(client_addr)
                         print(f"[PING] Wyslano PING do {client_addr}")
                     except (ConnectionError, OSError):
+                        # Klient rozłączył się w międzyczasie, pętla główna to obsłuży
                         pass
 
 
