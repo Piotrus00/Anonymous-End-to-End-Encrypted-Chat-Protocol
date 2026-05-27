@@ -24,6 +24,8 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
                     print(f"[{addr}] Blad: Otrzymano niepoprawny JSON")
                     break
 
+                session_manager.update_client_activity(addr)
+
                 message_type = message_json.get("type")
                 print(f"[{addr}] Otrzymano: {message_json}")
 
@@ -130,6 +132,9 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
 
                     print(f"[CLOSE OK] Zamknieto sesje {close_session_id}")
                     break
+
+                elif message_type == "PONG":
+                    pass
 
                 else:
                     response = error(

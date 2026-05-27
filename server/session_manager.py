@@ -3,6 +3,7 @@ Zarządzanie sesjami
 """
 
 import threading
+import time
 import uuid
 from typing import Dict, List, Optional, Tuple
 
@@ -13,15 +14,40 @@ class SessionManager:
     def __init__(self):
         self.sessions: Dict[str, List] = {}
         self.connections: Dict[tuple, object] = {}
+        self.client_status: Dict[tuple, Dict] = {}
         self.lock = threading.Lock()
 
     def register_connection(self, client_addr, conn) -> None:
         with self.lock:
             self.connections[client_addr] = conn
+            self.client_status[client_addr] = {
+                "last_activity_time": time.time(),
+                "missed_pings_count": 0,
+            }
 
     def unregister_connection(self, client_addr) -> None:
         with self.lock:
             self.connections.pop(client_addr, None)
+            self.client_status.pop(client_addr, None)
+
+    def update_client_activity(self, client_addr) -> None:
+        with self.lock:
+            if client_addr in self.client_status:
+                self.client_status[client_addr]["last_activity_time"] = time.time()
+                self.client_status[client_addr]["missed_pings_count"] = 0
+
+    def increment_missed_pings(self, client_addr) -> None:
+        with self.lock:
+            if client_addr in self.client_status:
+                self.client_status[client_addr]["missed_pings_count"] += 1
+
+    def get_inactive_clients(self, max_missed_pings: int) -> List[tuple]:
+        with self.lock:
+            inactive_clients = []
+            for client_addr, status in self.client_status.items():
+                if status["missed_pings_count"] >= max_missed_pings:
+                    inactive_clients.append(client_addr)
+            return inactive_clients
 
     def create_session(self, client_addr) -> str:
         session_id = f"sess_{uuid.uuid4().hex[:12]}"
