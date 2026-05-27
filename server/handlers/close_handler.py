@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 from ..response_builder import close_notice, error
 from common.errors import ERROR_SESSION_INVALID
@@ -8,9 +9,10 @@ from common.models import CloseRequestFrame
 
 async def handle_close(
     message_json: CloseRequestFrame,
+    addr: tuple,
     writer: asyncio.StreamWriter,
     session_manager: SessionManager,
-    encode_message,
+    encode_message: Any,
 ) -> bool:
     close_session_id = message_json.session_id
     participant_writers = await session_manager.close_session_and_get_writers(close_session_id)

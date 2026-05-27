@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 from .handlers.init_handler import handle_init
 from .handlers.join_handler import handle_join
@@ -28,7 +28,7 @@ async def dispatch(
     encode_message,
 ) -> Optional[str]:
     message_type = message_json.type
-    handler: Any = message_handlers.get(message_type)
+    handler = message_handlers.get(message_type)
 
     if not handler:
         response = error(
@@ -39,22 +39,14 @@ async def dispatch(
         await writer.drain()
         return None
 
-    if message_type in ("INIT", "JOIN"):
-        handler_any = cast(Any, handler)
-        result = await handler_any(message_json, addr, writer, session_manager, encode_message)
-        return result if isinstance(result, str) else None
-    elif message_type in ("MSG", "ACK"):
-        handler_any = cast(Any, handler)
-        await handler_any(message_json, addr, writer, session_manager, encode_message)
-        return None
-    elif message_type == "CLOSE":
-        handler_any = cast(Any, handler)
-        closed = await handler_any(message_json, writer, session_manager, encode_message)
-        if closed:
-            return "CLOSE"
-        return None
-    elif message_type == "PONG":
-        handler_any = cast(Any, handler)
-        await handler_any()  # Correctly call pong handler without arguments
-        return None
-    return None
+    result = await handler(message_json, addr, writer, session_manager, encode_message)
+
+    match message_type:
+        case "INIT" | "JOIN":
+            return result if isinstance(result, str) else None
+        case "CLOSE":
+            if result:
+                return "CLOSE"
+            return None
+        case _:
+            return None
