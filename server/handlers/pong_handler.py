@@ -1,2 +1,2 @@
-def handle_pong() -> None:
+async def handle_pong() -> None:
     pass

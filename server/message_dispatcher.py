@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, Any, Optional
 
 from .handlers.init_handler import handle_init
@@ -18,7 +19,13 @@ message_handlers = {
     "PONG": handle_pong,
 }
 
-def dispatch(message_json: Dict[str, Any], addr: tuple, conn: object, session_manager, encode_message) -> Optional[str]:
+async def dispatch(
+    message_json: Dict[str, Any],
+    addr: tuple,
+    writer: asyncio.StreamWriter,
+    session_manager,
+    encode_message,
+) -> Optional[str]:
     message_type = message_json.get("type")
     handler = message_handlers.get(message_type)
 
@@ -27,21 +34,21 @@ def dispatch(message_json: Dict[str, Any], addr: tuple, conn: object, session_ma
             code=ERROR_UNKNOWN_TYPE,
             details=f"Nieznany typ wiadomosci: {message_type}",
         )
-        conn.sendall(encode_message(response))
+        writer.write(encode_message(response))
+        await writer.drain()
         return None
 
-    if message_type == "INIT":
-        return handler(message_json, addr, conn, session_manager, encode_message)
-    elif message_type == "JOIN":
-        return handler(message_json, addr, conn, session_manager, encode_message)
+    # Assuming handlers will be converted to async functions
+    if message_type in ("INIT", "JOIN"):
+        return await handler(message_json, addr, writer, session_manager, encode_message)
     elif message_type in ("MSG", "ACK"):
-        handler(message_json, addr, conn, session_manager, encode_message)
+        await handler(message_json, addr, writer, session_manager, encode_message)
         return None
     elif message_type == "CLOSE":
-        if handler(message_json, conn, session_manager, encode_message):
+        if await handler(message_json, writer, session_manager, encode_message):
             return "CLOSE"
         return None
     elif message_type == "PONG":
-        handler()
+        await handler() # Assuming pong handler will be async
         return None
     return None
