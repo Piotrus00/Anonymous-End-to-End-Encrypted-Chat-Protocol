@@ -1,12 +1,9 @@
-import sys
 import threading
-from pathlib import Path
 from typing import Dict
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.config import BUFFER_SIZE
-from api.pong_api import build_pong_frame
-from api.ack_api import build_ack_frame
+from .api.pong_api import build_pong_frame
+from .api.ack_api import build_ack_frame
 
 def start_receiver(sock, encode_message, decode_message, unacked_messages: Dict[str, float], unacked_lock: threading.Lock) -> threading.Thread:
     def _receiver_loop():

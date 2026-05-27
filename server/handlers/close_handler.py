@@ -1,9 +1,6 @@
 from typing import Dict, Any
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from server.response_builder import close_notice, error
+from ..response_builder import close_notice, error
 from common.errors import ERROR_MISSING_FIELD, ERROR_SESSION_INVALID
 
 REQUIRED_CLOSE_FIELDS = ("type", "session_id", "msg_id", "timestamp")

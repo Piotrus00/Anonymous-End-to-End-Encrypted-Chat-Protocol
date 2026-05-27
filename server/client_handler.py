@@ -1,12 +1,9 @@
 from typing import Optional
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.config import BUFFER_SIZE, MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
 from common.errors import ERROR_BAD_JSON, ERROR_MESSAGE_TOO_LARGE, ERROR_RATE_LIMIT_EXCEEDED
-from response_builder import error
-from message_dispatcher import dispatch
+from .response_builder import error
+from .message_dispatcher import dispatch
 
 def handle_client(conn, addr, session_manager, decode_message, encode_message) -> None:
     print(f"[NOWE POLACZENIE] Polaczono z {addr}")

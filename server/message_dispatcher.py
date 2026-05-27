@@ -1,15 +1,12 @@
 from typing import Dict, Any, Optional
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from handlers.init_handler import handle_init
-from handlers.join_handler import handle_join
-from handlers.msg_handler import handle_msg
-from handlers.close_handler import handle_close
-from handlers.pong_handler import handle_pong
-from handlers.ack_handler import handle_ack
-from response_builder import error
+from .handlers.init_handler import handle_init
+from .handlers.join_handler import handle_join
+from .handlers.msg_handler import handle_msg
+from .handlers.close_handler import handle_close
+from .handlers.pong_handler import handle_pong
+from .handlers.ack_handler import handle_ack
+from .response_builder import error
 from common.errors import ERROR_UNKNOWN_TYPE
 
 message_handlers = {

@@ -1,9 +1,6 @@
 from typing import Dict, Any, Optional
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from server.response_builder import join_ok, error
+from ..response_builder import join_ok, error
 from common.errors import ERROR_MISSING_FIELD, ERROR_SESSION_INVALID
 
 def handle_join(message_json: Dict[str, Any], addr: tuple, conn: object, session_manager, encode_message) -> Optional[str]:

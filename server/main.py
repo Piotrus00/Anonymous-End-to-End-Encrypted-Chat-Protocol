@@ -1,17 +1,14 @@
 import socket
 import threading
 import time
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.protocol import decode_message, encode_message
-from response_builder import ping, error
+from .response_builder import ping, error
 
-from client_handler import handle_client
+from .client_handler import handle_client
 from common.config import HOST, PORT, KEEP_ALIVE_INTERVAL, MAX_MISSED_PINGS
 from common.errors import ERROR_DISCONNECTED
-from session_manager import SessionManager
+from .session_manager import SessionManager
 
 session_manager = SessionManager()
 

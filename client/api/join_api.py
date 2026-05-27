@@ -1,8 +1,5 @@
-import sys
 import time
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from common.config import BUFFER_SIZE
 
 def send_join(sock, session_id: str, encode_message, decode_message) -> bool:

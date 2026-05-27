@@ -1,9 +1,6 @@
-import sys
 import time
-from pathlib import Path
 from typing import Optional
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from common.config import BUFFER_SIZE
 
 def send_init(sock, encode_message, decode_message) -> Optional[str]:

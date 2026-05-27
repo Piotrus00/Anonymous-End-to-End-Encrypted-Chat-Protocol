@@ -1,18 +1,15 @@
 import socket
-import sys
 import time
 import threading
-from pathlib import Path
 from typing import Dict, List
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.protocol import decode_message, encode_message
 from common.config import HOST, PORT, ACK_TIMEOUT, MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
-from api.init_api import send_init
-from api.join_api import send_join
-from api.message_api import build_msg_frame
-from api.close_api import send_close
-from receiver import start_receiver
+from .api.init_api import send_init
+from .api.join_api import send_join
+from .api.message_api import build_msg_frame
+from .api.close_api import send_close
+from .receiver import start_receiver
 
 unacked_messages: Dict[str, float] = {}
 unacked_lock = threading.Lock()
