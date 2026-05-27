@@ -15,7 +15,7 @@ class SessionManager:
         self.sessions: Dict[str, List] = {}
         self.connections: Dict[tuple, object] = {}
         self.client_status: Dict[tuple, Dict] = {}
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
     def register_connection(self, client_addr, conn) -> None:
         with self.lock:
