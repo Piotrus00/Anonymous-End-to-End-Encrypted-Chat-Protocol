@@ -1,10 +1,12 @@
+import struct
 from typing import Optional
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from common.config import BUFFER_SIZE, MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
+from common.config import MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
 from common.errors import ERROR_BAD_JSON, ERROR_MESSAGE_TOO_LARGE, ERROR_RATE_LIMIT_EXCEEDED
+from common.protocol import read_exactly
 from response_builder import error
 from message_dispatcher import dispatch
 
@@ -16,17 +18,26 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
     with conn:
         while True:
             try:
-                data = conn.recv(BUFFER_SIZE)
-                if not data:
+                # Etap 1: Odczytaj 4-bajtowy nagłówek z długością wiadomości
+                header_bytes = read_exactly(conn, 4)
+                if not header_bytes:
                     break
+                
+                message_length = struct.unpack('!I', header_bytes)[0]
 
-                if len(data) > MAX_MESSAGE_SIZE:
-                    print(f"[{addr}] Odrzucono wiadomosc: przekroczono rozmiar ({len(data)} bajtow)")
+                # Walidacja rozmiaru wiadomości PRZED jej pobraniem
+                if message_length > MAX_MESSAGE_SIZE:
+                    print(f"[{addr}] Odrzucono wiadomosc: zadeklarowany rozmiar ({message_length} bajtow) jest za duzy")
                     response = error(
                         code=ERROR_MESSAGE_TOO_LARGE,
                         details="Wiadomosc jest zbyt duza",
                     )
                     conn.sendall(encode_message(response))
+                    break # Rozłącz klienta, który próbuje wysłać za dużą wiadomość
+
+                # Etap 2: Odczytaj właściwą wiadomość o zadeklarowanej długości
+                data = read_exactly(conn, message_length)
+                if not data:
                     break
 
                 if not session_manager.check_and_update_rate_limit(addr, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW):
@@ -59,7 +70,7 @@ def handle_client(conn, addr, session_manager, decode_message, encode_message) -
                 elif result is not None:
                     session_id = result
 
-            except ConnectionResetError:
+            except (ConnectionResetError, ConnectionError):
                 break
 
     if session_id:
