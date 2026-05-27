@@ -63,12 +63,12 @@ async def handle_client(
 
             print(f"[{addr}] Otrzymano: {message_json}")
 
-            # dispatch will be made async in a later step, awaiting it now.
             result = await dispatch(message_json, addr, writer, session_manager, encode_message)
 
             if result == "CLOSE":
                 break
-            elif result is not None:
+            # If dispatch returns a session_id, store it but continue the loop
+            elif result is not None and result != "CLOSE":
                 session_id = result
 
     except (ConnectionResetError, ConnectionError):

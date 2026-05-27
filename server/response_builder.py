@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 def init_ok(session_id: str, msg_id: Any, timestamp: Any) -> Dict[str, Any]:
     return {
-        "type": "INIT",
+        "type": "INIT_OK",
         "session_id": session_id,
         "msg_id": msg_id,
         "timestamp": timestamp,
@@ -13,7 +13,7 @@ def init_ok(session_id: str, msg_id: Any, timestamp: Any) -> Dict[str, Any]:
 
 def join_ok(session_id: str, msg_id: Any, timestamp: Any) -> Dict[str, Any]:
     return {
-        "type": "JOIN",
+        "type": "JOIN_OK",
         "session_id": session_id,
         "msg_id": msg_id,
         "timestamp": timestamp,

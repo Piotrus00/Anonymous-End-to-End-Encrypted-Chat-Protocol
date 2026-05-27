@@ -38,7 +38,6 @@ async def dispatch(
         await writer.drain()
         return None
 
-    # Assuming handlers will be converted to async functions
     if message_type in ("INIT", "JOIN"):
         return await handler(message_json, addr, writer, session_manager, encode_message)
     elif message_type in ("MSG", "ACK"):
@@ -49,6 +48,6 @@ async def dispatch(
             return "CLOSE"
         return None
     elif message_type == "PONG":
-        await handler() # Assuming pong handler will be async
+        await handler()  # Correctly call pong handler without arguments
         return None
     return None

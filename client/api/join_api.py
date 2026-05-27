@@ -1,8 +1,16 @@
+import asyncio
 import time
 
 from common.config import BUFFER_SIZE
 
-def send_join(sock, session_id: str, encode_message, decode_message) -> bool:
+
+async def send_join(
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+    session_id: str,
+    encode_message,
+    decode_message,
+) -> bool:
     join_message = {
         "type": "JOIN",
         "session_id": session_id,
@@ -11,9 +19,15 @@ def send_join(sock, session_id: str, encode_message, decode_message) -> bool:
     }
 
     print(f"\n-> Wysylam JOIN dla sesji {session_id}...")
-    sock.sendall(encode_message(join_message))
+    writer.write(encode_message(join_message))
+    await writer.drain()
 
-    data = sock.recv(BUFFER_SIZE)
+    try:
+        data = await reader.readuntil(b'\n')
+    except asyncio.IncompleteReadError:
+        print("X Serwer zamknal polaczenie")
+        return False
+
     if not data:
         print("X Serwer zamknal polaczenie")
         return False
@@ -27,8 +41,8 @@ def send_join(sock, session_id: str, encode_message, decode_message) -> bool:
         print(f"X Blad serwera: {response.get('details', 'Nieznany blad')}")
         return False
 
-    if response.get("type") != "JOIN":
-        print(f"X Blad: Oczekiwano JOIN, otrzymano {response.get('type')}")
+    if response.get("type") != "JOIN_OK":
+        print(f"X Blad: Oczekiwano JOIN_OK, otrzymano {response.get('type')}")
         return False
 
     print(f"OK Dolaczono do sesji: {session_id}")
