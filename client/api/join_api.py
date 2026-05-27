@@ -2,15 +2,10 @@ import asyncio
 import time
 
 from common.models import JoinFrame
+from common.protocol import encode_message, decode_message
 
 
-async def send_join(
-    reader: asyncio.StreamReader,
-    writer: asyncio.StreamWriter,
-    session_id: str,
-    encode_message,
-    decode_message,
-) -> bool:
+async def send_join(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, session_id: str) -> bool:
     join_message = JoinFrame(session_id=session_id, msg_id="msg_002", timestamp=int(time.time()))
 
     print(f"\n-> Wysylam JOIN dla sesji {session_id}...")

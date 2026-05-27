@@ -3,14 +3,10 @@ import time
 from typing import Optional
 
 from common.models import InitFrame
+from common.protocol import encode_message, decode_message
 
 
-async def send_init(
-    reader: asyncio.StreamReader,
-    writer: asyncio.StreamWriter,
-    encode_message,
-    decode_message,
-) -> Optional[str]:
+async def send_init(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[str]:
     init_message = InitFrame(msg_id="msg_001", timestamp=int(time.time()))
 
     print("\n-> Wysylam INIT...")

@@ -1,6 +1,5 @@
 import asyncio
 
-from common.protocol import decode_message, encode_message
 from common.config import HOST, PORT, MAX_MESSAGE_SIZE
 from .api.init_api import send_init
 from .api.join_api import send_join
@@ -24,7 +23,7 @@ async def main():
         choice = choice.strip()
 
         if choice == "1":
-            session_id = await send_init(reader, writer, encode_message, decode_message)
+            session_id = await send_init(reader, writer)
             if session_id:
                 print(f"\nPrzekaz session_id drugiemu uzytkownikowi: {session_id}")
                 await client.start(session_id, is_initiator=True)
@@ -34,7 +33,7 @@ async def main():
             session_id_input = session_id_input.strip()
             if not session_id_input:
                 print("X session_id nie moze byc pusty")
-            elif await send_join(reader, writer, session_id_input, encode_message, decode_message):
+            elif await send_join(reader, writer, session_id_input):
                 await client.start(session_id_input, is_initiator=False)
         else:
             print("X Niepoprawny wybor")

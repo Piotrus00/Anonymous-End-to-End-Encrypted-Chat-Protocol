@@ -53,7 +53,7 @@ class ChatClient:
                 text = text.strip()
 
                 if text.lower() == "exit":
-                    await send_close(self.writer, self.session_id, encode_message)
+                    await send_close(self.writer, self.session_id)
                     self.stop_event.set()
                     break
                 if not text:
