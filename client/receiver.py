@@ -1,13 +1,14 @@
 import sys
 import threading
 from pathlib import Path
+from typing import Dict
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.config import BUFFER_SIZE
 from api.pong_api import build_pong_frame
 from api.ack_api import build_ack_frame
 
-def start_receiver(sock, encode_message, decode_message) -> threading.Thread:
+def start_receiver(sock, encode_message, decode_message, unacked_messages: Dict[str, float], unacked_lock: threading.Lock) -> threading.Thread:
     def _receiver_loop():
         while True:
             try:
@@ -30,6 +31,14 @@ def start_receiver(sock, encode_message, decode_message) -> threading.Thread:
                     if session_id and msg_id:
                         ack_frame = build_ack_frame(session_id, msg_id)
                         sock.sendall(encode_message(ack_frame))
+
+                elif response_type == "ACK":
+                    payload = response.get("payload", {})
+                    acked_msg_id = payload.get("acked_msg_id")
+                    with unacked_lock:
+                        if acked_msg_id in unacked_messages:
+                            unacked_messages.pop(acked_msg_id, None)
+                            print(f"\n[SYSTEM] Otrzymano potwierdzenie dla {acked_msg_id}")
 
                 elif response_type == "CLOSE":
                     closed_sid = response.get("session_id")
