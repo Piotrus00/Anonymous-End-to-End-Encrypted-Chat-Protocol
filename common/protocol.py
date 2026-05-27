@@ -4,6 +4,7 @@ Wspólny moduł do enkodowania/dekodowania wiadomości JSON
 
 import json
 import socket
+import struct
 from typing import Tuple, Dict, Any
 
 
@@ -39,5 +40,8 @@ def decode_message(data: bytes) -> Tuple[bool, Dict[str, Any]]:
 
 
 def encode_message(message: Dict[str, Any]) -> bytes:
-    """Koduje słownik na JSON i zwraca bajty"""
-    return json.dumps(message).encode('utf-8')
+    """Koduje słownik na JSON, dodaje 4-bajtowy nagłówek z długością i zwraca bajty"""
+    message_bytes = json.dumps(message).encode('utf-8')
+    # 'I' oznacza 4-bajtowy unsigned int, '!' to porządek sieciowy (big-endian)
+    header = struct.pack('!I', len(message_bytes))
+    return header + message_bytes
