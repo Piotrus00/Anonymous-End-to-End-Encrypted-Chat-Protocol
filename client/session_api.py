@@ -3,7 +3,7 @@ import time
 import uuid
 from typing import Optional
 
-from config import BUFFER_SIZE
+from common.config import BUFFER_SIZE
 
 
 def send_init(sock, encode_message, decode_message) -> Optional[str]:
@@ -83,12 +83,20 @@ def build_close_frame(session_id: str) -> dict:
     }
 
 
+def build_pong_frame() -> dict:
+    return {
+        "type": "PONG",
+        "msg_id": f"pong_{uuid.uuid4().hex[:12]}",
+        "timestamp": int(time.time()),
+    }
+
+
 def send_close(sock, session_id: str, encode_message) -> None:
     frame = build_close_frame(session_id)
     sock.sendall(encode_message(frame))
 
 
-def start_receiver(sock, decode_message) -> threading.Thread:
+def start_receiver(sock, encode_message, decode_message) -> threading.Thread:
     def _receiver_loop():
         while True:
             try:
@@ -108,6 +116,9 @@ def start_receiver(sock, decode_message) -> threading.Thread:
                     closed_sid = response.get("session_id")
                     print(f"\n[CLOSE] Sesja {closed_sid} zostala zamknieta")
                     break
+                elif response_type == "PING":
+                    pong_frame = build_pong_frame()
+                    sock.sendall(encode_message(pong_frame))
                 elif response_type == "ERROR":
                     print(f"\n[ERROR] {response.get('details', 'Nieznany blad')}")
             except OSError:
@@ -120,7 +131,7 @@ def start_receiver(sock, decode_message) -> threading.Thread:
 
 def chat_loop(sock, session_id: str, encode_message, decode_message) -> None:
     print("\nMozesz wysylac MSG. Wpisz 'exit' aby wyslac CLOSE i zakonczyc.")
-    start_receiver(sock, decode_message)
+    start_receiver(sock, encode_message, decode_message)
 
     while True:
         text = input("Ty: ").strip()

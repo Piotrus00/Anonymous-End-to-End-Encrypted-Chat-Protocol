@@ -1,6 +1,6 @@
 from typing import Optional
 
-from config import BUFFER_SIZE
+from common.config import BUFFER_SIZE
 from response_builder import close_notice, error, init_ok, join_ok
 
 REQUIRED_MSG_FIELDS = ("type", "session_id", "msg_id", "timestamp")

@@ -31,6 +31,14 @@ def close_notice(session_id: str, msg_id: Any, timestamp: Any) -> Dict[str, Any]
     }
 
 
+def ping(msg_id: Any, timestamp: Any) -> Dict[str, Any]:
+    return {
+        "type": "PING",
+        "msg_id": msg_id,
+        "timestamp": timestamp,
+    }
+
+
 def error(code: str, details: str) -> Dict[str, str]:
     return {
         "type": "ERROR",
