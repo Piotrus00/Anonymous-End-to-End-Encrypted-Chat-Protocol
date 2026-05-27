@@ -23,6 +23,7 @@ class SessionManager:
             self.client_status[client_addr] = {
                 "last_activity_time": time.time(),
                 "missed_pings_count": 0,
+                "message_timestamps": [],
             }
 
     def unregister_connection(self, client_addr) -> None:
@@ -35,6 +36,26 @@ class SessionManager:
             if client_addr in self.client_status:
                 self.client_status[client_addr]["last_activity_time"] = time.time()
                 self.client_status[client_addr]["missed_pings_count"] = 0
+
+    def check_and_update_rate_limit(self, client_addr: tuple, limit: int, window: int) -> bool:
+        """Sprawdza, czy klient nie przekracza limitu wiadomości. Zwraca False, jeśli limit został przekroczony."""
+        with self.lock:
+            if client_addr not in self.client_status:
+                return False
+
+            current_time = time.time()
+            timestamps = self.client_status[client_addr]["message_timestamps"]
+
+            # Usuń stare timestampy
+            timestamps = [ts for ts in timestamps if current_time - ts <= window]
+
+            if len(timestamps) < limit:
+                timestamps.append(current_time)
+                self.client_status[client_addr]["message_timestamps"] = timestamps
+                return True
+            else:
+                self.client_status[client_addr]["message_timestamps"] = timestamps
+                return False
 
     def increment_missed_pings(self, client_addr) -> None:
         with self.lock:

@@ -5,3 +5,5 @@ MAX_MESSAGE_SIZE = 1024
 KEEP_ALIVE_INTERVAL = 3
 MAX_MISSED_PINGS = 3
 ACK_TIMEOUT = 10  # Czas w sekundach na oczekiwanie na ACK
+RATE_LIMIT_MESSAGES = 5  # Max ilosc wiadomosci
+RATE_LIMIT_WINDOW = 2    # W oknie czasowym (sekundy)
