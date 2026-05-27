@@ -28,7 +28,11 @@ async def user_input_loop(
     writer: asyncio.StreamWriter,
     session_id: str,
     stop_event: asyncio.Event,
+    chat_ready_event: asyncio.Event,
 ):
+    await chat_ready_event.wait()
+    print("\nMozesz wysylac MSG. Wpisz 'exit' aby wyslac CLOSE i zakonczyc.")
+
     local_message_timestamps: List[float] = []
     while not stop_event.is_set():
         try:
@@ -73,15 +77,23 @@ async def chat_loop(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
     session_id: str,
+    is_initiator: bool,
 ):
-    print("\nMozesz wysylac MSG. Wpisz 'exit' aby wyslac CLOSE i zakonczyc.")
     stop_event = asyncio.Event()
+    chat_ready_event = asyncio.Event()
+
+    if not is_initiator:
+        chat_ready_event.set()
+    else:
+        print("\n[SYSTEM] Oczekiwanie na dolaczenie drugiego uzytkownika...")
 
     receiver_task = asyncio.create_task(
-        receiver_loop(reader, writer, encode_message, decode_message, unacked_messages, unacked_lock, stop_event)
+        receiver_loop(
+            reader, writer, encode_message, decode_message, unacked_messages, unacked_lock, stop_event, chat_ready_event
+        )
     )
     timeout_task = asyncio.create_task(check_ack_timeouts(stop_event))
-    input_task = asyncio.create_task(user_input_loop(writer, session_id, stop_event))
+    input_task = asyncio.create_task(user_input_loop(writer, session_id, stop_event, chat_ready_event))
 
     await asyncio.gather(receiver_task, timeout_task, input_task, return_exceptions=True)
 
@@ -101,12 +113,11 @@ async def main():
         choice = await asyncio.to_thread(input, "\nWybierz opcje (1 lub 2): ")
         choice = choice.strip()
 
-        session_id = None
         if choice == "1":
             session_id = await send_init(reader, writer, encode_message, decode_message)
             if session_id:
                 print(f"\nPrzekaz session_id drugiemu uzytkownikowi: {session_id}")
-                await chat_loop(reader, writer, session_id)
+                await chat_loop(reader, writer, session_id, is_initiator=True)
 
         elif choice == "2":
             session_id_input = await asyncio.to_thread(input, "Wpisz session_id sesji, do ktorej chcesz dolaczyc: ")
@@ -114,7 +125,7 @@ async def main():
             if not session_id_input:
                 print("X session_id nie moze byc pusty")
             elif await send_join(reader, writer, session_id_input, encode_message, decode_message):
-                await chat_loop(reader, writer, session_id_input)
+                await chat_loop(reader, writer, session_id_input, is_initiator=False)
         else:
             print("X Niepoprawny wybor")
 
