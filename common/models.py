@@ -26,6 +26,7 @@ class AckPayload(ProtocolModel):
 
 
 
+class KeyExchangePayload(ProtocolModel):
 
 
 class BaseMessageFrame(ProtocolModel):
@@ -54,17 +55,19 @@ class AckFrame(SessionMessageFrame):
     type: Literal["ACK"] = "ACK"
     payload: AckPayload
 
+
 class ErrorFrame(ProtocolModel):
     type: Literal["ERROR"] = "ERROR"
     error_code: str
     details: str
+
 
 class CloseRequestFrame(SessionMessageFrame):
     type: Literal["CLOSE"] = "CLOSE"
 
 
 class CloseNoticeFrame(SessionMessageFrame):
-    type: Literal["CLOSE"] = "CLOSE"
+    type: Literal["CLOSE_NOTICE"] = "CLOSE_NOTICE"
     payload: StatusPayload = Field(default_factory=lambda: StatusPayload(status="SESSION_CLOSED"))
 
 
@@ -82,6 +85,7 @@ class JoinOkFrame(SessionMessageFrame):
 ProtocolMessage: TypeAlias = (
     InitFrame
     | JoinFrame
+    | KeyExchangeFrame
     | MsgFrame
     | AckFrame
     | CloseRequestFrame

@@ -5,6 +5,7 @@ from .handlers.join_handler import handle_join
 from .handlers.msg_handler import handle_msg
 from .handlers.close_handler import handle_close
 from .handlers.ack_handler import handle_ack
+from .handlers.key_exchange_handler import handle_key_exchange
 from .response_builder import error
 from common.errors import ERROR_UNKNOWN_TYPE
 from common.models import ProtocolMessage
@@ -13,6 +14,7 @@ from common.protocol import encode_message
 message_handlers: dict[str, Any] = {
     "INIT": handle_init,
     "JOIN": handle_join,
+    "KEY_EXCHANGE": handle_key_exchange,
     "MSG": handle_msg,
     "ACK": handle_ack,
     "CLOSE": handle_close,
