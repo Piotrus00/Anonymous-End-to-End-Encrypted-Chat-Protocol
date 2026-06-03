@@ -17,8 +17,6 @@ from .models import (
     JoinFrame,
     JoinOkFrame,
     MsgFrame,
-    PingFrame,
-    PongFrame,
     ProtocolMessage,
 )
 
@@ -31,8 +29,6 @@ IncomingDiscriminatedMessage: TypeAlias = (
     | CloseNoticeFrame
     | InitOkFrame
     | JoinOkFrame
-    | PingFrame
-    | PongFrame
     | ErrorFrame
 )
 

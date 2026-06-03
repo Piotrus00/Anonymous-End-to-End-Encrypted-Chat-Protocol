@@ -24,7 +24,6 @@ class SessionManager:
             self.writers[client_addr] = writer
             self.client_status[client_addr] = {
                 "last_activity_time": time.monotonic(),
-                "missed_pings_count": 0,
                 "tokens_available": float(RATE_LIMIT_MESSAGES),  # Token Bucket - pełne wiaderko
                 "last_refill_time": time.monotonic(),  # Token Bucket algorithm
             }
@@ -61,7 +60,6 @@ class SessionManager:
         async with self.lock:
             if client_addr in self.client_status:
                 self.client_status[client_addr]["last_activity_time"] = time.monotonic()
-                self.client_status[client_addr]["missed_pings_count"] = 0
 
     async def check_and_update_rate_limit(self, client_addr: tuple, limit: int, window: int) -> bool:
         """
@@ -99,11 +97,6 @@ class SessionManager:
                 return True
             else:
                 return False
-
-    async def increment_missed_pings(self, client_addr) -> None:
-        async with self.lock:
-            if client_addr in self.client_status:
-                self.client_status[client_addr]["missed_pings_count"] += 1
 
     async def create_session(self, client_addr) -> str:
         session_id = f"sess_{uuid.uuid4().hex[:12]}"

@@ -1,4 +1,4 @@
-from common.models import CloseNoticeFrame, ErrorFrame, InitOkFrame, JoinOkFrame, PingFrame
+from common.models import CloseNoticeFrame, ErrorFrame, InitOkFrame, JoinOkFrame
 
 
 def init_ok(session_id: str, msg_id: str, timestamp: int) -> InitOkFrame:
@@ -11,10 +11,6 @@ def join_ok(session_id: str, msg_id: str, timestamp: int) -> JoinOkFrame:
 
 def close_notice(session_id: str, msg_id: str, timestamp: int) -> CloseNoticeFrame:
     return CloseNoticeFrame(session_id=session_id, msg_id=msg_id, timestamp=timestamp)
-
-
-def ping(msg_id: str, timestamp: int) -> PingFrame:
-    return PingFrame(msg_id=msg_id, timestamp=timestamp)
 
 
 def error(code: str, details: str) -> ErrorFrame:

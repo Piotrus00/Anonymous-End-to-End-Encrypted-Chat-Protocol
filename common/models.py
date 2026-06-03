@@ -30,18 +30,6 @@ class ErrorFrame(ProtocolModel):
     details: str
 
 
-class PingFrame(ProtocolModel):
-    type: Literal["PING"] = "PING"
-    msg_id: str
-    timestamp: int
-
-
-class PongFrame(ProtocolModel):
-    type: Literal["PONG"] = "PONG"
-    msg_id: str
-    timestamp: int
-
-
 class BaseMessageFrame(ProtocolModel):
     msg_id: str
     timestamp: int
@@ -97,8 +85,6 @@ ProtocolMessage: TypeAlias = (
     | CloseNoticeFrame
     | InitOkFrame
     | JoinOkFrame
-    | PingFrame
-    | PongFrame
     | ErrorFrame
 )
 
@@ -111,8 +97,6 @@ OutgoingMessage: TypeAlias = (
     | CloseNoticeFrame
     | InitOkFrame
     | JoinOkFrame
-    | PingFrame
-    | PongFrame
     | ErrorFrame
 )
 
@@ -125,8 +109,6 @@ IncomingMessageModels = (
     CloseNoticeFrame,
     InitOkFrame,
     JoinOkFrame,
-    PingFrame,
-    PongFrame,
     ErrorFrame,
 )
 

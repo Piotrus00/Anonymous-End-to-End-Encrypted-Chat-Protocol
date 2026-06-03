@@ -4,7 +4,6 @@ from .handlers.init_handler import handle_init
 from .handlers.join_handler import handle_join
 from .handlers.msg_handler import handle_msg
 from .handlers.close_handler import handle_close
-from .handlers.pong_handler import handle_pong
 from .handlers.ack_handler import handle_ack
 from .response_builder import error
 from common.errors import ERROR_UNKNOWN_TYPE
@@ -17,7 +16,6 @@ message_handlers: dict[str, Any] = {
     "MSG": handle_msg,
     "ACK": handle_ack,
     "CLOSE": handle_close,
-    "PONG": handle_pong,
 }
 
 async def dispatch(
