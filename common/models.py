@@ -25,8 +25,8 @@ class AckPayload(ProtocolModel):
     acked_msg_id: str
 
 
-
 class KeyExchangePayload(ProtocolModel):
+    public_key: str
 
 
 class BaseMessageFrame(ProtocolModel):
@@ -44,6 +44,11 @@ class InitFrame(BaseMessageFrame):
 
 class JoinFrame(SessionMessageFrame):
     type: Literal["JOIN"] = "JOIN"
+
+
+class KeyExchangeFrame(SessionMessageFrame):
+    type: Literal["KEY_EXCHANGE"] = "KEY_EXCHANGE"
+    payload: KeyExchangePayload
 
 
 class MsgFrame(SessionMessageFrame):
@@ -94,4 +99,3 @@ ProtocolMessage: TypeAlias = (
     | JoinOkFrame
     | ErrorFrame
 )
-
