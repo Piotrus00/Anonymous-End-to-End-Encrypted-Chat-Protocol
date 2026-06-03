@@ -16,6 +16,7 @@ from .models import (
     InitOkFrame,
     JoinFrame,
     JoinOkFrame,
+    KeyExchangeFrame,
     MsgFrame,
     ProtocolMessage,
 )
@@ -24,8 +25,10 @@ from .models import (
 IncomingDiscriminatedMessage: TypeAlias = (
     InitFrame
     | JoinFrame
+    | KeyExchangeFrame
     | MsgFrame
     | AckFrame
+    | CloseRequestFrame
     | CloseNoticeFrame
     | InitOkFrame
     | JoinOkFrame
@@ -68,6 +71,7 @@ def decode_message(data: bytes) -> Tuple[bool, ProtocolMessage | None]:
         )
 
     return True, message
+    return True, obj.root
 
 
 def encode_message(message: ProtocolMessage | BaseModel | dict[str, Any]) -> bytes:
