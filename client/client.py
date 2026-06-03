@@ -1,6 +1,8 @@
 import asyncio
 import time
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
+
+import websockets
 
 from common.protocol import decode_message, encode_message
 from common.config import ACK_TIMEOUT, MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
@@ -11,9 +13,8 @@ from .api.ack_api import build_ack_frame
 
 
 class ChatClient:
-    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        self.reader = reader
-        self.writer = writer
+    def __init__(self, websocket: Any):
+        self.websocket = websocket
         self.unacked_messages: Dict[str, float] = {}
         self.unacked_lock = asyncio.Lock()
         self.stop_event = asyncio.Event()
@@ -56,7 +57,7 @@ class ChatClient:
                 text = text.strip()
 
                 if text.lower() == "exit":
-                    await send_close(self.writer, self.session_id)
+                    await send_close(self.websocket, self.session_id)
                     self.stop_event.set()
                     break
                 if not text:
@@ -91,8 +92,7 @@ class ChatClient:
                 async with self.unacked_lock:
                     self.unacked_messages[msg_id] = current_time
 
-                self.writer.write(encoded_frame)
-                await self.writer.drain()
+                await self.websocket.send(encoded_frame)
                 print(f"[SYSTEM] Wyslano wiadomosc {msg_id}, oczekiwanie na ACK...")
             except (EOFError, KeyboardInterrupt):
                 self.stop_event.set()
@@ -101,9 +101,14 @@ class ChatClient:
     async def receiver_loop(self):
         while not self.stop_event.is_set():
             try:
-                message_bytes = await self.reader.readuntil(b'\n')
-                if not message_bytes:
+                message = await self.websocket.recv()
+                if not message:
                     break
+
+                if isinstance(message, str):
+                    message_bytes = message.encode("utf-8")
+                else:
+                    message_bytes = message
 
                 success, response = decode_message(message_bytes.strip())
                 if not success or response is None:
@@ -115,8 +120,7 @@ class ChatClient:
                     print(f"\n[MSG] {text}")
 
                     ack_frame = build_ack_frame(response.session_id, response.msg_id)
-                    self.writer.write(encode_message(ack_frame))
-                    await self.writer.drain()
+                    await self.websocket.send(encode_message(ack_frame))
 
                 elif response_type == "ACK":
                     acked_msg_id = response.payload.acked_msg_id
@@ -136,21 +140,14 @@ class ChatClient:
                     break
                 elif response_type == "PING":
                     pong_frame = build_pong_frame()
-                    self.writer.write(encode_message(pong_frame))
-                    await self.writer.drain()
+                    await self.websocket.send(encode_message(pong_frame))
                 elif response_type == "ERROR":
                     print(f"\n[ERROR] {response.details}")
-
-            except asyncio.LimitOverrunError as e:
+            except websockets.exceptions.PayloadTooBig:
                 print(f"\n[SYSTEM] Odrzucono odpowiedz serwera: przekroczono limit {MAX_MESSAGE_SIZE} bajtow")
-                # Bezpiecznie odetnij fragment, który na pewno nie zawiera separatora linii.
-                try:
-                    await self.reader.readexactly(e.consumed)
-                except asyncio.IncompleteReadError:
-                    pass
                 self.stop_event.set()
                 break
-            except (asyncio.IncompleteReadError, ConnectionError, OSError):
+            except (websockets.exceptions.ConnectionClosed, ConnectionError, OSError):
                 print("\n[SYSTEM] Utracono polaczenie z serwerem.")
                 self.stop_event.set()
                 break
