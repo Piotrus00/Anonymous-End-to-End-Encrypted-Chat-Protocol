@@ -5,7 +5,7 @@ Zarządzanie sesjami
 import asyncio
 import time
 import uuid
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from common.config import RATE_LIMIT_MESSAGES
 
@@ -15,16 +15,15 @@ class SessionManager:
 
     def __init__(self):
         self.sessions: Dict[str, List] = {}
-        self.writers: Dict[tuple, asyncio.StreamWriter] = {}
+        self.writers: Dict[tuple, Any] = {}
         self.client_status: Dict[tuple, Dict] = {}
         self.lock = asyncio.Lock()
 
-    async def register_connection(self, client_addr, writer: asyncio.StreamWriter) -> None:
+    async def register_connection(self, client_addr, writer: Any) -> None:
         async with self.lock:
             self.writers[client_addr] = writer
             self.client_status[client_addr] = {
                 "last_activity_time": time.monotonic(),
-                "missed_pings_count": 0,
                 "tokens_available": float(RATE_LIMIT_MESSAGES),  # Token Bucket - pełne wiaderko
                 "last_refill_time": time.monotonic(),  # Token Bucket algorithm
             }
@@ -35,8 +34,8 @@ class SessionManager:
             # Zamknij i usuń writer
             writer = self.writers.pop(client_addr, None)
             if writer:
-                writer.close()
                 try:
+                    await writer.close()
                     await writer.wait_closed()
                 except (ConnectionError, OSError):
                     pass  # Ignoruj błędy, jeśli połączenie już jest zerwane
@@ -61,7 +60,6 @@ class SessionManager:
         async with self.lock:
             if client_addr in self.client_status:
                 self.client_status[client_addr]["last_activity_time"] = time.monotonic()
-                self.client_status[client_addr]["missed_pings_count"] = 0
 
     async def check_and_update_rate_limit(self, client_addr: tuple, limit: int, window: int) -> bool:
         """
@@ -100,11 +98,6 @@ class SessionManager:
             else:
                 return False
 
-    async def increment_missed_pings(self, client_addr) -> None:
-        async with self.lock:
-            if client_addr in self.client_status:
-                self.client_status[client_addr]["missed_pings_count"] += 1
-
     async def create_session(self, client_addr) -> str:
         session_id = f"sess_{uuid.uuid4().hex[:12]}"
         async with self.lock:
@@ -141,7 +134,7 @@ class SessionManager:
                     return session_id
         return None
 
-    async def get_peer_writer(self, session_id: str, sender_addr) -> Optional[asyncio.StreamWriter]:
+    async def get_peer_writer(self, session_id: str, sender_addr) -> Optional[Any]:
         """Zwraca writer drugiego uczestnika sesji albo None."""
         async with self.lock:
             participants = self.sessions.get(session_id)
@@ -153,3 +146,17 @@ class SessionManager:
                     return self.writers.get(participant_addr)
 
             return None
+
+    async def close_session_and_get_writers(self, session_id: str) -> Optional[List[Any]]:
+        """Zamyka sesje i zwraca listę aktywnych połączeń uczestników."""
+        async with self.lock:
+            participants = self.sessions.pop(session_id, None)
+            if not participants:
+                return None
+
+            participant_writers = [
+                self.writers.get(participant_addr)
+                for participant_addr in participants
+                if participant_addr in self.writers
+            ]
+            return participant_writers

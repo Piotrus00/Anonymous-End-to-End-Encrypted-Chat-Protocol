@@ -1,5 +1,6 @@
-import asyncio
-from typing import Optional
+from typing import Any, Optional
+
+import websockets
 
 from ..response_builder import join_ok, error
 from common.errors import ERROR_SESSION_INVALID
@@ -11,7 +12,7 @@ from common.protocol import encode_message
 async def handle_join(
     message_json: JoinFrame,
     addr: tuple,
-    writer: asyncio.StreamWriter,
+    writer: Any,
     session_manager: SessionManager,
 ) -> Optional[str]:
     join_session_id = message_json.session_id
@@ -19,8 +20,7 @@ async def handle_join(
     joined, reason = await session_manager.join_session(join_session_id, addr)
     if not joined:
         response = error(code=ERROR_SESSION_INVALID, details=reason)
-        writer.write(encode_message(response))
-        await writer.drain()
+        await writer.send(encode_message(response))
         print(f"[JOIN FAIL] {addr} - {reason}")
         return None
 
@@ -33,8 +33,7 @@ async def handle_join(
         msg_id=message_json.msg_id,
         timestamp=message_json.timestamp,
     )
-    writer.write(encode_message(response_to_joiner))
-    await writer.drain()
+    await writer.send(encode_message(response_to_joiner))
 
     # If the session is now full, notify the other participant
     session_participants = await session_manager.get_session(join_session_id)
@@ -48,9 +47,8 @@ async def handle_join(
                 timestamp=message_json.timestamp,
             )
             try:
-                peer_writer.write(encode_message(notification_to_peer))
-                await peer_writer.drain()
-            except OSError as e:
+                await peer_writer.send(encode_message(notification_to_peer))
+            except (OSError, websockets.exceptions.ConnectionClosed) as e:
                 print(f"[ERROR] Nie udalo sie powiadomic klienta: {e}")
 
     return join_session_id

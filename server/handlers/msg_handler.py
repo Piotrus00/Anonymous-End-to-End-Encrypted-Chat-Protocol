@@ -1,4 +1,6 @@
-import asyncio
+from typing import Any
+
+import websockets
 
 from ..response_builder import error
 from common.errors import (
@@ -14,7 +16,7 @@ from common.protocol import encode_message
 async def handle_msg(
     message_json: MsgFrame,
     addr: tuple,
-    writer: asyncio.StreamWriter,
+    writer: Any,
     session_manager: SessionManager,
 ) -> None:
     msg_session_id = message_json.session_id
@@ -36,19 +38,16 @@ async def handle_msg(
                 details="Drugi uczestnik sesji nie jest polaczony lub sesja jest nieprawidlowa.",
             )
         
-        writer.write(encode_message(response))
-        await writer.drain()
+        await writer.send(encode_message(response))
         return
 
     # If we have a peer_writer, try to send the message.
     try:
-        peer_writer.write(encode_message(message_json))
-        await peer_writer.drain()
+        await peer_writer.send(encode_message(message_json))
         print(f"[MSG RELAY] {addr} -> session {msg_session_id}")
-    except OSError:
+    except (OSError, websockets.exceptions.ConnectionClosed):
         response = error(
             code=ERROR_DELIVERY_FAILED,
             details="Nie udalo sie dostarczyc wiadomosci do drugiego uzytkownika.",
         )
-        writer.write(encode_message(response))
-        await writer.drain()
+        await writer.send(encode_message(response))

@@ -181,3 +181,4 @@ cython_debug/
 .cursorindexingignore
 .vscode/
 .env.*
+docs/code-map.md

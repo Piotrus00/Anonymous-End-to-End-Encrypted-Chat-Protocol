@@ -1,34 +1,33 @@
-import asyncio
 import time
-from typing import Optional
+from typing import Any, Optional
+
+import websockets
 
 from common.models import InitFrame
 from common.protocol import encode_message, decode_message
 
 
-async def send_init(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[str]:
+async def send_init(websocket: Any) -> Optional[str]:
     init_message = InitFrame(msg_id="msg_001", timestamp=int(time.time()))
 
     print("\n-> Wysylam INIT...")
-    writer.write(encode_message(init_message))
-    await writer.drain()
+    await websocket.send(encode_message(init_message))
 
     try:
-        data = await reader.readuntil(b'\n')
-    except asyncio.LimitOverrunError as e:
+        data = await websocket.recv()
+    except websockets.exceptions.PayloadTooBig:
         print("X Odpowiedz serwera przekroczyla dozwolony rozmiar")
-        try:
-            await reader.readexactly(e.consumed)
-        except asyncio.IncompleteReadError:
-            pass
         return None
-    except asyncio.IncompleteReadError:
+    except websockets.exceptions.ConnectionClosed:
         print("X Serwer zamknal polaczenie")
         return None
 
     if not data:
         print("X Serwer zamknal polaczenie")
         return None
+
+    if isinstance(data, str):
+        data = data.encode("utf-8")
 
     success, response = decode_message(data)
     if not success or response is None or response.type != "INIT_OK":

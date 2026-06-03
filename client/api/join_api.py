@@ -1,33 +1,33 @@
-import asyncio
 import time
+from typing import Any
+
+import websockets
 
 from common.models import JoinFrame
 from common.protocol import encode_message, decode_message
 
 
-async def send_join(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, session_id: str) -> bool:
+async def send_join(websocket: Any, session_id: str) -> bool:
     join_message = JoinFrame(session_id=session_id, msg_id="msg_002", timestamp=int(time.time()))
 
     print(f"\n-> Wysylam JOIN dla sesji {session_id}...")
-    writer.write(encode_message(join_message))
-    await writer.drain()
+    await websocket.send(encode_message(join_message))
 
     try:
-        data = await reader.readuntil(b'\n')
-    except asyncio.LimitOverrunError as e:
+        data = await websocket.recv()
+    except websockets.exceptions.PayloadTooBig:
         print("X Odpowiedz serwera przekroczyla dozwolony rozmiar")
-        try:
-            await reader.readexactly(e.consumed)
-        except asyncio.IncompleteReadError:
-            pass
         return False
-    except asyncio.IncompleteReadError:
+    except websockets.exceptions.ConnectionClosed:
         print("X Serwer zamknal polaczenie")
         return False
 
     if not data:
         print("X Serwer zamknal polaczenie")
         return False
+
+    if isinstance(data, str):
+        data = data.encode("utf-8")
 
     success, response = decode_message(data)
     if not success:

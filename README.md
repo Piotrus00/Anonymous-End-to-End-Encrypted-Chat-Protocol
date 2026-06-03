@@ -48,7 +48,6 @@ Treść wiadomości pozostaje niedostępna dla serwera dzięki szyfrowaniu end-t
 - `KEY_EXCHANGE` — wymiana kluczy,
 - `MSG` — przesyłanie wiadomości,
 - `SYN/ACK` — w TCP, do potwierdzenia odbioru wiadomości,
-- `PING` — keep-alive,
 - `CLOSE` — zamknięcie sesji,
 - `ERROR` — w razie błędów.
 
@@ -113,14 +112,14 @@ Przebieg:
 Jeżeli klient:
 
 - nie wyśle żadnej wiadomości,
-- ani nie odpowie na `PING`
+- ani nie odpowie na ping WebSocket
 
 przez określony czas, połączenie uznawane jest za utracone.
 
 **Keep-alive:**
 
-- serwer wysyła ping,
-- jeżeli klient nie odpowie 3 razy pod rząd, sesja zostaje zamknięta.
+- keep-alive realizowany jest przez WebSocket ping/pong,
+- brak odpowiedzi przez kilka interwałów powoduje rozłączenie.
 
 ## 5. Bezpieczeństwo
 
@@ -174,7 +173,7 @@ przez określony czas, połączenie uznawane jest za utracone.
 
 ### Timeout połączenia
 
-Serwer co określony czas wysyła `PING` i oczekuje na odpowiedzi od użytkowników. Jeżeli po 3-krotnym wykonaniu tej operacji serwer nie otrzyma odpowiedzi, zamyka połączenie.
+Keep-alive realizowany jest przez WebSocket ping/pong. Jeżeli klient nie odpowiada przez kilka interwałów, połączenie zostaje zamknięte.
 
 ### Utrata połączenia w trakcie sesji
 
@@ -378,7 +377,7 @@ Sesja zostaje zamknięta, dalsza komunikacja w jej ramach jest niemożliwa. Klie
 ### Niezawodność
 
 - TCP — dostarczanie danych w odpowiedniej kolejności i bez strat,
-- monitorowanie aktywności klientów za pośrednictwem keep-alive (`PING`/`PONG`),
+- monitorowanie aktywności klientów przez WebSocket ping/pong,
 - timeout i obsługa żartu.
 
 ### Skalowalność

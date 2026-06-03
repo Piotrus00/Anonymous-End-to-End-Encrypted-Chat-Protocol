@@ -1,5 +1,6 @@
-import asyncio
 from typing import Any
+
+import websockets
 
 from ..response_builder import close_notice, error
 from common.errors import ERROR_SESSION_INVALID
@@ -11,7 +12,7 @@ from common.protocol import encode_message
 async def handle_close(
     message_json: CloseRequestFrame,
     addr: tuple,
-    writer: asyncio.StreamWriter,
+    writer: Any,
     session_manager: SessionManager,
 ) -> bool:
     close_session_id = message_json.session_id
@@ -21,8 +22,7 @@ async def handle_close(
             code=ERROR_SESSION_INVALID,
             details=f"Sesja {close_session_id} nie istnieje lub jest juz zamknieta",
         )
-        writer.write(encode_message(response))
-        await writer.drain()
+        await writer.send(encode_message(response))
         return False
 
     notice = close_notice(
@@ -34,9 +34,8 @@ async def handle_close(
 
     for participant_writer in participant_writers:
         try:
-            participant_writer.write(encoded_notice)
-            await participant_writer.drain()
-        except OSError:
+            await participant_writer.send(encoded_notice)
+        except (OSError, websockets.exceptions.ConnectionClosed):
             pass
 
     print(f"[CLOSE OK] Zamknieto sesje {close_session_id}")
