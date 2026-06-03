@@ -2,7 +2,9 @@ import asyncio
 import time
 from functools import partial
 
-from common.protocol import decode_message, encode_message
+import websockets
+
+from common.protocol import encode_message
 from .response_builder import ping, error
 
 from .client_handler import handle_client
@@ -35,9 +37,8 @@ async def keep_alive_loop(manager: SessionManager):
                                 code=ERROR_DISCONNECTED,
                                 details="Drugi uczestnik utracil polaczenie z powodu braku aktywonsci.",
                             )
-                            peer_writer.write(encode_message(error_message))
-                            await peer_writer.drain()
-                        except (ConnectionError, OSError):
+                            await peer_writer.send(encode_message(error_message))
+                        except (ConnectionError, OSError, websockets.exceptions.ConnectionClosed):
                             pass
                 
                 await manager.disconnect_client(client_addr)
@@ -52,11 +53,10 @@ async def keep_alive_loop(manager: SessionManager):
                 if writer_to_ping:
                     try:
                         ping_message = ping(msg_id="ping_123", timestamp=int(time.time()))
-                        writer_to_ping.write(encode_message(ping_message))
-                        await writer_to_ping.drain()
+                        await writer_to_ping.send(encode_message(ping_message))
                         await manager.increment_missed_pings(client_addr)
                         print(f"[PING] Wyslano PING do {client_addr}")
-                    except (ConnectionError, OSError):
+                    except (ConnectionError, OSError, websockets.exceptions.ConnectionClosed):
                         # Klient rozłączył się w międzyczasie, pętla główna to obsłuży
                         pass
 
@@ -68,14 +68,12 @@ async def main():
         session_manager=session_manager
     )
 
-    server = await asyncio.start_server(handler, HOST, PORT, limit=MAX_MESSAGE_SIZE + 1)
-
     print(f"[START] Serwer nasluchuje na {HOST}:{PORT}")
 
     asyncio.create_task(keep_alive_loop(session_manager))
 
-    async with server:
-        await server.serve_forever()
+    async with websockets.serve(handler, HOST, PORT, max_size=MAX_MESSAGE_SIZE):
+        await asyncio.Future()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any, Optional
 
 from .handlers.init_handler import handle_init
@@ -24,7 +23,7 @@ message_handlers: dict[str, Any] = {
 async def dispatch(
     message_json: ProtocolMessage,
     addr: tuple,
-    writer: asyncio.StreamWriter,
+    writer: Any,
     session_manager,
 ) -> Optional[str]:
     message_type = message_json.type
@@ -35,8 +34,7 @@ async def dispatch(
             code=ERROR_UNKNOWN_TYPE,
             details=f"Nieznany typ wiadomosci: {message_type}",
         )
-        writer.write(encode_message(response))
-        await writer.drain()
+        await writer.send(encode_message(response))
         return None
 
     result = await handler(message_json, addr, writer, session_manager)
