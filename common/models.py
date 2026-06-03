@@ -88,28 +88,3 @@ ProtocolMessage: TypeAlias = (
     | ErrorFrame
 )
 
-OutgoingMessage: TypeAlias = (
-    InitFrame
-    | JoinFrame
-    | MsgFrame
-    | AckFrame
-    | CloseRequestFrame
-    | CloseNoticeFrame
-    | InitOkFrame
-    | JoinOkFrame
-    | ErrorFrame
-)
-
-IncomingMessageModels = (
-    InitFrame,
-    JoinFrame,
-    MsgFrame,
-    AckFrame,
-    CloseRequestFrame,
-    CloseNoticeFrame,
-    InitOkFrame,
-    JoinOkFrame,
-    ErrorFrame,
-)
-
-
