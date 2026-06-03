@@ -34,7 +34,7 @@ IncomingDiscriminatedMessage: TypeAlias = (
 
 
 class MessageAdapter(RootModel):
-    root: Annotated[IncomingDiscriminatedMessage, Field(discriminator="type")]
+    root: Annotated[IncomingDiscriminatedMessage, Field(discriminator="type")] # Field(discriminator="type") mówi Pydanticowi, żeby patrzył na pole "type"
 
 
 def decode_message(data: bytes) -> Tuple[bool, ProtocolMessage | None]:
@@ -45,9 +45,9 @@ def decode_message(data: bytes) -> Tuple[bool, ProtocolMessage | None]:
         (success, message) - success True jeśli dekodowanie i walidacja się powiodły.
     """
     try:
-        message_str = data.decode("utf-8")
-        message_json = json.loads(message_str)
-        obj = MessageAdapter.model_validate(message_json)
+        message_str = data.decode("utf-8") # dekodujemy bajty do stringa
+        message_json = json.loads(message_str) # parsujemy stringa do JSONa
+        obj = MessageAdapter.model_validate(message_json) # walidujemy JSONa i mapujemy go na model Pydantic, wyżej dostępne modele
     except (json.JSONDecodeError, UnicodeDecodeError, ValidationError):
         return False, None
 
@@ -57,7 +57,6 @@ def decode_message(data: bytes) -> Tuple[bool, ProtocolMessage | None]:
     message = obj.root
 
     # Rozróżniamy CLOSE request (bez payload) od CLOSE notice (z payload),
-    # bo oba używają tego samego discriminatora "type".
     if isinstance(message, CloseNoticeFrame) and "payload" not in message_json:
         return (
             True,

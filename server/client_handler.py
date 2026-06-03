@@ -32,7 +32,8 @@ async def handle_client(
     try:
         while True:
             try:
-                message = await websocket.recv()
+                message = await websocket.recv() # Odbierz wiadomość od klienta
+                
             except websockets.exceptions.PayloadTooBig:
                 print(f"[{addr}] Odrzucono wiadomosc: przekroczono rozmiar ramki")
                 response = error(
@@ -58,6 +59,7 @@ async def handle_client(
                 await websocket.send(encode_message(response))
                 continue
 
+            # Sprawdź limit wiadomości dla tego klienta
             if not await session_manager.check_and_update_rate_limit(addr, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW):
                 print(f"[{addr}] Przekroczono limit wiadomosci. Odrzucono.")
                 response = error(
@@ -67,17 +69,17 @@ async def handle_client(
                 await websocket.send(encode_message(response))
                 continue
 
-            success, message_json = decode_message(message_bytes.strip())
+            success, message_json = decode_message(message_bytes.strip()) # Odkoduj otrzymaną wiadomość + sprawdź poprawność
             if not success:
                 print(f"[{addr}] Blad: Otrzymano niepoprawny JSON")
                 response = error(
                     code=ERROR_BAD_JSON,
                     details="Niepoprawny format wiadomosci JSON",
                 )
-                await websocket.send(encode_message(response))
+                await websocket.send(encode_message(response)) # Odpowiedz klientowi, że otrzymany JSON jest niepoprawny
                 continue
 
-            await session_manager.update_client_activity(addr)
+            await session_manager.update_client_activity(addr) # Zaktualizuj timestamp ostatniej aktywności klienta, aby monitorować połączenie i ewentualnie rozłączyć nieaktywnych klientów
 
             print(f"[{addr}] Otrzymano: {message_json}")
 
@@ -91,6 +93,8 @@ async def handle_client(
         print(f"[{addr}] Niespodziewany blad: {e}")
     finally:
         if not closed_by_protocol:
+        # Jeśli klient rozłączył się niespodziewanie, spróbuj powiadomić drugiego uczestnika sesji o rozłączeniu,
+        #  wysyłając mu ramkę ERROR z odpowiednim kodem i komunikatem
             session_id = await session_manager.find_session_by_addr(addr)
             if session_id:
                 peer_writer = await session_manager.get_peer_writer(session_id, addr)
