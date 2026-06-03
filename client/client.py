@@ -117,7 +117,7 @@ class ChatClient:
                     print(f"X {exc}")
                     continue
 
-                msg_id, frame = build_msg_frame(self.session_id, text) # Zbuduj ramkę wiadomości, która zawiera session_id, msg_id i tekst
+                msg_id, frame = build_msg_frame(self.session_id, ciphertext) # Zbuduj ramkę wiadomości, która zawiera session_id, msg_id i zaszyfrowany tekst
                 encoded_frame = encode_message(frame) # Zakoduj ramkę
 
                 if len(encoded_frame) > MAX_MESSAGE_SIZE:
@@ -148,7 +148,8 @@ class ChatClient:
                 else:
                     message_bytes = message
 
-                success, response = decode_message(message_bytes.strip()) # Odkoduj otrzymaną wiadomość + sprawdź poprawność
+                success, response = decode_message(message_bytes.strip())
+
                 if not success or response is None:
                     continue
 
