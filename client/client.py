@@ -4,28 +4,33 @@ from typing import Any, Dict, Optional
 
 import websockets
 
+from common.crypto import CryptoSession
 from common.protocol import decode_message, encode_message
 from common.config import ACK_TIMEOUT, MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
 from .api.close_api import send_close
 from .api.message_api import build_msg_frame
 from .api.ack_api import build_ack_frame
+from .api.key_exchange_api import send_key_exchange
 
 
 class ChatClient:
     def __init__(self, websocket: Any):
         self.websocket = websocket
+        self.crypto = CryptoSession()
         self.unacked_messages: Dict[str, float] = {}
         self.unacked_lock = asyncio.Lock()
         self.stop_event = asyncio.Event()
         self.chat_ready_event = asyncio.Event()
         self.session_id: Optional[str] = None
+        self._key_exchange_sent = False
 
     async def start(self, session_id: str, is_initiator: bool):
         self.session_id = session_id
-        if not is_initiator:
-            self.chat_ready_event.set() # Jeśli dołączamy do sesji, zakładamy, że jest już gotowa do rozmowy
-        else:
+        if is_initiator:
             print("\n[SYSTEM] Oczekiwanie na dolaczenie drugiego uzytkownika...")
+        else:
+            print("\n[SYSTEM] Rozpoczynam wymiane kluczy...")
+            await self._send_key_exchange()
 
         # Uruchom wszystkie trzy zadania:
         receiver_task = asyncio.create_task(self.receiver_loop()) # Odbieranie wiadomości od serwera
@@ -33,6 +38,30 @@ class ChatClient:
         input_task = asyncio.create_task(self.user_input_loop()) # Obsługa wejścia użytkownika - wysyłanie wiadomości i komendy exit
 
         await asyncio.gather(receiver_task, timeout_task, input_task, return_exceptions=True) # Czekaj na zakończenie wszystkich zadań
+
+    async def _maybe_enable_chat(self) -> None:
+        if self._key_exchange_sent and self.crypto.is_ready:
+            self.chat_ready_event.set()
+            print("\n[SYSTEM] Wymiana kluczy zakonczona. Mozna rozmawiac (E2EE).")
+
+    async def _send_key_exchange(self) -> None:
+        if self._key_exchange_sent or self.session_id is None:
+            return
+        await send_key_exchange(self.websocket, self.session_id, self.crypto.public_key_b64())
+        self._key_exchange_sent = True
+        print("[SYSTEM] Wyslano klucz publiczny (KEY_EXCHANGE)")
+        await self._maybe_enable_chat()
+
+    async def _on_key_exchange_received(self, public_key_b64: str) -> None:
+        try:
+            self.crypto.set_peer_public_key(public_key_b64)
+        except (ValueError, RuntimeError) as exc:
+            print(f"\n[ERROR] Nie udalo sie przetworzyc klucza publicznego peer-a: {exc}")
+            return
+
+        await self._maybe_enable_chat()
+
+
     #  kazda wyslana wiadomosc jest zapisywana w unacked_messages z timestampem wyslania.
     #  Ten task co sekundę sprawdza, czy dla którejś z nich nie minął czas oczekiwania na ACK (10sekund).
     #  Jeśli tak, usuwa ją z unacked_messages i informuje użytkownika, że nie otrzymał potwierdzenia.
@@ -72,14 +101,20 @@ class ChatClient:
                 time_elapsed = current_time - local_last_refill_time
                 tokens_to_add = time_elapsed * refill_rate
                 local_tokens_available = min(
-                    RATE_LIMIT_MESSAGES,  # Max capacity
-                    local_tokens_available + tokens_to_add
+                    RATE_LIMIT_MESSAGES,
+                    local_tokens_available + tokens_to_add,
                 )
                 local_last_refill_time = current_time
 
                 # Check if we can send a message (need 1 token)
                 if local_tokens_available < 1.0:
                     print("X Przekroczono limit wiadomosci. Sprobuj ponownie za chwile.")
+                    continue
+
+                try:
+                    ciphertext = self.crypto.encrypt(text)
+                except RuntimeError as exc:
+                    print(f"X {exc}")
                     continue
 
                 msg_id, frame = build_msg_frame(self.session_id, text) # Zbuduj ramkę wiadomości, która zawiera session_id, msg_id i tekst
@@ -98,17 +133,15 @@ class ChatClient:
                 await self.websocket.send(encoded_frame) # Wyślij zakodowaną ramkę do serwera
                 # print(f"[SYSTEM] Wyslano wiadomosc {msg_id}, oczekiwanie na ACK...")
             except (EOFError, KeyboardInterrupt):
-                self.stop_event.set() 
+                self.stop_event.set()
                 break
 
-    
     async def receiver_loop(self):
         while not self.stop_event.is_set(): # Pętla odbierająca wiadomości od serwera, działa dopóki nie zostanie ustawiony stop_event
             try:
                 message = await self.websocket.recv()
                 if not message:
                     break
-
 
                 if isinstance(message, str):
                     message_bytes = message.encode("utf-8")
@@ -134,11 +167,14 @@ class ChatClient:
                             self.unacked_messages.pop(acked_msg_id, None)
                             print(f"\n[SYSTEM] Otrzymano potwierdzenie dla {acked_msg_id}")
 
-                elif response_type == "JOIN_OK":
-                    print("\n[SYSTEM] Drugi uzytkownik dolaczyl do sesji. Mozna rozmawiac.")
-                    self.chat_ready_event.set()
+                elif response_type == "KEY_EXCHANGE":
+                    await self._on_key_exchange_received(response.payload.public_key)
 
-                elif response_type == "CLOSE":
+                elif response_type == "JOIN_OK":
+                    print("\n[SYSTEM] Drugi uzytkownik dolaczyl do sesji.")
+                    await self._send_key_exchange()
+
+                elif response_type == "CLOSE_NOTICE":
                     closed_sid = response.session_id
                     print(f"\n[CLOSE] Sesja {closed_sid} zostala zamknieta")
                     self.stop_event.set()
