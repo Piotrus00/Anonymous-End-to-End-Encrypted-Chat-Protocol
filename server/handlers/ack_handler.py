@@ -1,4 +1,6 @@
-import asyncio
+from typing import Any
+
+import websockets
 
 from ..session_manager import SessionManager
 from common.models import AckFrame
@@ -8,7 +10,7 @@ from common.protocol import encode_message
 async def handle_ack(
     message_json: AckFrame,
     addr: tuple,
-    writer: asyncio.StreamWriter,
+    writer: Any,
     session_manager: SessionManager,
 ) -> None:
     msg_session_id = message_json.session_id
@@ -18,8 +20,7 @@ async def handle_ack(
         return
 
     try:
-        peer_writer.write(encode_message(message_json))
-        await peer_writer.drain()
+        await peer_writer.send(encode_message(message_json))
         print(f"[ACK RELAY] {addr} -> session {msg_session_id}")
-    except OSError:
+    except (OSError, websockets.exceptions.ConnectionClosed):
         pass  # Ignore delivery errors for ACKs

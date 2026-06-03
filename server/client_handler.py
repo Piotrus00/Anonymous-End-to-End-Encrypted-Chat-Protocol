@@ -1,4 +1,6 @@
-import asyncio
+from typing import Any
+
+import websockets
 
 from common.config import MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
 from common.errors import ERROR_BAD_JSON, ERROR_MESSAGE_TOO_LARGE, ERROR_RATE_LIMIT_EXCEEDED
@@ -8,45 +10,34 @@ from .session_manager import SessionManager
 from common.protocol import decode_message, encode_message
 
 
-async def _discard_oversized_line(reader: asyncio.StreamReader) -> None:
-    """Opróżnia dane aż do nowej linii bez niekontrolowanego wzrostu pamięci."""
-    while True:
-        try:
-            await reader.readuntil(b'\n')
-            return
-        except asyncio.LimitOverrunError as e:
-            # Odrzuć bezpiecznie fragment, który już na pewno nie zawiera separatora.
-            await reader.readexactly(e.consumed)
-        except asyncio.IncompleteReadError:
-            return
-
-
 async def handle_client(
-    reader: asyncio.StreamReader,
-    writer: asyncio.StreamWriter,
+    websocket: Any,
+    path: str,
     session_manager: SessionManager,
 ) -> None:
-    addr = writer.get_extra_info("peername")
+    addr = websocket.remote_address or ("unknown", id(websocket))
     print(f"[NOWE POLACZENIE] Polaczono z {addr}")
-    await session_manager.register_connection(addr, writer)
+    await session_manager.register_connection(addr, websocket)
 
     try:
         while True:
             try:
-                message_bytes = await reader.readuntil(b'\n')
-            except asyncio.LimitOverrunError:
-                print(f"[{addr}] Odrzucono wiadomosc: przekroczono limit bufora bez znaku nowej linii")
-                await _discard_oversized_line(reader)
+                message = await websocket.recv()
+            except websockets.exceptions.PayloadTooBig:
+                print(f"[{addr}] Odrzucono wiadomosc: przekroczono rozmiar ramki")
                 response = error(
                     code=ERROR_MESSAGE_TOO_LARGE,
                     details="Wiadomosc jest zbyt duza",
                 )
-                writer.write(encode_message(response))
-                await writer.drain()
+                await websocket.send(encode_message(response))
                 break
-            except (asyncio.IncompleteReadError, ConnectionResetError, ConnectionError):
-                # Client disconnected
+            except websockets.exceptions.ConnectionClosed:
                 break
+
+            if isinstance(message, str):
+                message_bytes = message.encode("utf-8")
+            else:
+                message_bytes = message
 
             if len(message_bytes) > MAX_MESSAGE_SIZE:
                 print(f"[{addr}] Odrzucono wiadomosc: przekroczono rozmiar ({len(message_bytes)} bajtow)")
@@ -54,8 +45,7 @@ async def handle_client(
                     code=ERROR_MESSAGE_TOO_LARGE,
                     details="Wiadomosc jest zbyt duza",
                 )
-                writer.write(encode_message(response))
-                await writer.drain()
+                await websocket.send(encode_message(response))
                 continue
 
             if not await session_manager.check_and_update_rate_limit(addr, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW):
@@ -64,8 +54,7 @@ async def handle_client(
                     code=ERROR_RATE_LIMIT_EXCEEDED,
                     details="Wysylasz wiadomosci zbyt szybko. Zwolnij.",
                 )
-                writer.write(encode_message(response))
-                await writer.drain()
+                await websocket.send(encode_message(response))
                 continue
 
             success, message_json = decode_message(message_bytes.strip())
@@ -75,15 +64,14 @@ async def handle_client(
                     code=ERROR_BAD_JSON,
                     details="Niepoprawny format wiadomosci JSON",
                 )
-                writer.write(encode_message(response))
-                await writer.drain()
+                await websocket.send(encode_message(response))
                 continue
 
             await session_manager.update_client_activity(addr)
 
             print(f"[{addr}] Otrzymano: {message_json}")
 
-            result = await dispatch(message_json, addr, writer, session_manager)
+            result = await dispatch(message_json, addr, websocket, session_manager)
 
             if result == "CLOSE":
                 break
