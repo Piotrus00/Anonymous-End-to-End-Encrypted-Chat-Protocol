@@ -154,7 +154,12 @@ class ChatClient:
 
                 response_type = response.type # Sprawdź typ odpowiedzi i obsłuż odpowiednio:
                 if response_type == "MSG":
-                    text = response.payload.ciphertext
+                    try:
+                        text = self.crypto.decrypt(response.payload.ciphertext)
+                    except (RuntimeError, ValueError) as exc:
+                        print(f"\n[ERROR] Nie udalo sie odszyfrowac wiadomosci: {exc}")
+                        continue
+
                     print(f"\n[MSG] {text}")
 
                     ack_frame = build_ack_frame(response.session_id, response.msg_id)
