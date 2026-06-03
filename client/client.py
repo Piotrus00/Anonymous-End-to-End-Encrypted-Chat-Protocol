@@ -23,16 +23,19 @@ class ChatClient:
     async def start(self, session_id: str, is_initiator: bool):
         self.session_id = session_id
         if not is_initiator:
-            self.chat_ready_event.set()
+            self.chat_ready_event.set() # Jeśli dołączamy do sesji, zakładamy, że jest już gotowa do rozmowy
         else:
             print("\n[SYSTEM] Oczekiwanie na dolaczenie drugiego uzytkownika...")
 
-        receiver_task = asyncio.create_task(self.receiver_loop())
-        timeout_task = asyncio.create_task(self.check_ack_timeouts())
-        input_task = asyncio.create_task(self.user_input_loop())
+        # Uruchom wszystkie trzy zadania:
+        receiver_task = asyncio.create_task(self.receiver_loop()) # Odbieranie wiadomości od serwera
+        timeout_task = asyncio.create_task(self.check_ack_timeouts()) # Sprawdzanie, czy nie minął czas oczekiwania na ACK dla wysłanych wiadomości
+        input_task = asyncio.create_task(self.user_input_loop()) # Obsługa wejścia użytkownika - wysyłanie wiadomości i komendy exit
 
-        await asyncio.gather(receiver_task, timeout_task, input_task, return_exceptions=True)
-
+        await asyncio.gather(receiver_task, timeout_task, input_task, return_exceptions=True) # Czekaj na zakończenie wszystkich zadań
+    #  kazda wyslana wiadomosc jest zapisywana w unacked_messages z timestampem wyslania.
+    #  Ten task co sekundę sprawdza, czy dla którejś z nich nie minął czas oczekiwania na ACK (10sekund).
+    #  Jeśli tak, usuwa ją z unacked_messages i informuje użytkownika, że nie otrzymał potwierdzenia.
     async def check_ack_timeouts(self):
         while not self.stop_event.is_set():
             await asyncio.sleep(1)
@@ -43,8 +46,8 @@ class ChatClient:
                         self.unacked_messages.pop(msg_id, None)
 
     async def user_input_loop(self):
-        await self.chat_ready_event.wait()
-        print("\nMozesz wysylac MSG. Wpisz 'exit' aby wyslac CLOSE i zakonczyc.")
+        await self.chat_ready_event.wait() # czekamy na drugiego użytkownika, zanim pozwolimy na wysyłanie wiadomości
+        print("\nMozesz wysylac MSG. Wpisz 'exit' aby zakonczyc.")
 
         # Token Bucket algorithm variables - inicjalizuj bucket na pełną pojemność
         local_tokens_available: float = float(RATE_LIMIT_MESSAGES)
@@ -79,8 +82,8 @@ class ChatClient:
                     print("X Przekroczono limit wiadomosci. Sprobuj ponownie za chwile.")
                     continue
 
-                msg_id, frame = build_msg_frame(self.session_id, text)
-                encoded_frame = encode_message(frame)
+                msg_id, frame = build_msg_frame(self.session_id, text) # Zbuduj ramkę wiadomości, która zawiera session_id, msg_id i tekst
+                encoded_frame = encode_message(frame) # Zakoduj ramkę
 
                 if len(encoded_frame) > MAX_MESSAGE_SIZE:
                     print(f"X Wiadomosc jest zbyt dluga ({len(encoded_frame)}/{MAX_MESSAGE_SIZE} bajtow) i nie zostala wyslana.")
@@ -88,38 +91,41 @@ class ChatClient:
 
                 local_tokens_available -= 1.0
 
+                # Dodaj wiadomość do unacked_messages z aktualnym timestampem
                 async with self.unacked_lock:
                     self.unacked_messages[msg_id] = current_time
 
-                await self.websocket.send(encoded_frame)
-                print(f"[SYSTEM] Wyslano wiadomosc {msg_id}, oczekiwanie na ACK...")
+                await self.websocket.send(encoded_frame) # Wyślij zakodowaną ramkę do serwera
+                # print(f"[SYSTEM] Wyslano wiadomosc {msg_id}, oczekiwanie na ACK...")
             except (EOFError, KeyboardInterrupt):
-                self.stop_event.set()
+                self.stop_event.set() 
                 break
 
+    
     async def receiver_loop(self):
-        while not self.stop_event.is_set():
+        while not self.stop_event.is_set(): # Pętla odbierająca wiadomości od serwera, działa dopóki nie zostanie ustawiony stop_event
             try:
                 message = await self.websocket.recv()
                 if not message:
                     break
+
 
                 if isinstance(message, str):
                     message_bytes = message.encode("utf-8")
                 else:
                     message_bytes = message
 
-                success, response = decode_message(message_bytes.strip())
+                success, response = decode_message(message_bytes.strip()) # Odkoduj otrzymaną wiadomość + sprawdź poprawność
                 if not success or response is None:
                     continue
 
-                response_type = response.type
+                response_type = response.type # Sprawdź typ odpowiedzi i obsłuż odpowiednio:
                 if response_type == "MSG":
                     text = response.payload.ciphertext
                     print(f"\n[MSG] {text}")
 
                     ack_frame = build_ack_frame(response.session_id, response.msg_id)
-                    await self.websocket.send(encode_message(ack_frame))
+                    await self.websocket.send(encode_message(ack_frame)) # Po otrzymaniu wiadomości, zbuduj ramkę ACK i wyślij ją do serwera, aby potwierdzić odbiór
 
                 elif response_type == "ACK":
                     acked_msg_id = response.payload.acked_msg_id

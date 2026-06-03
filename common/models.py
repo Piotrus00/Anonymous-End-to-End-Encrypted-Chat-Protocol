@@ -9,9 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProtocolModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid") # jeśli ktoś doda pole, którego nie ma w schemacie
 
 
+#odrzucamy złe typy danych
 class StatusPayload(ProtocolModel):
     status: str
 
@@ -24,10 +25,7 @@ class AckPayload(ProtocolModel):
     acked_msg_id: str
 
 
-class ErrorFrame(ProtocolModel):
-    type: Literal["ERROR"] = "ERROR"
-    error_code: str
-    details: str
+
 
 
 class BaseMessageFrame(ProtocolModel):
@@ -38,7 +36,7 @@ class BaseMessageFrame(ProtocolModel):
 class SessionMessageFrame(BaseMessageFrame):
     session_id: str
 
-
+#rodzaje wiadomości, które mogą być wysyłane w protokole
 class InitFrame(BaseMessageFrame):
     type: Literal["INIT"] = "INIT"
 
@@ -56,6 +54,10 @@ class AckFrame(SessionMessageFrame):
     type: Literal["ACK"] = "ACK"
     payload: AckPayload
 
+class ErrorFrame(ProtocolModel):
+    type: Literal["ERROR"] = "ERROR"
+    error_code: str
+    details: str
 
 class CloseRequestFrame(SessionMessageFrame):
     type: Literal["CLOSE"] = "CLOSE"
@@ -76,6 +78,7 @@ class JoinOkFrame(SessionMessageFrame):
     payload: StatusPayload = Field(default_factory=lambda: StatusPayload(status="OK"))
 
 
+#każda wiadomość, która może być wysłana w protokole, musi być jedną z tych typów
 ProtocolMessage: TypeAlias = (
     InitFrame
     | JoinFrame
@@ -87,29 +90,4 @@ ProtocolMessage: TypeAlias = (
     | JoinOkFrame
     | ErrorFrame
 )
-
-OutgoingMessage: TypeAlias = (
-    InitFrame
-    | JoinFrame
-    | MsgFrame
-    | AckFrame
-    | CloseRequestFrame
-    | CloseNoticeFrame
-    | InitOkFrame
-    | JoinOkFrame
-    | ErrorFrame
-)
-
-IncomingMessageModels = (
-    InitFrame,
-    JoinFrame,
-    MsgFrame,
-    AckFrame,
-    CloseRequestFrame,
-    CloseNoticeFrame,
-    InitOkFrame,
-    JoinOkFrame,
-    ErrorFrame,
-)
-
 
