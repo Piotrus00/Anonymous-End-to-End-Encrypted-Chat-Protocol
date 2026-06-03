@@ -2,8 +2,6 @@ import time
 import uuid
 from typing import Any
 
-import websockets
-
 from common.models import CloseRequestFrame
 from common.protocol import encode_message
 

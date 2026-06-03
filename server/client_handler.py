@@ -1,9 +1,14 @@
-from typing import Any
+from typing import Any, Optional
 
 import websockets
 
 from common.config import MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
-from common.errors import ERROR_BAD_JSON, ERROR_MESSAGE_TOO_LARGE, ERROR_RATE_LIMIT_EXCEEDED
+from common.errors import (
+    ERROR_BAD_JSON,
+    ERROR_DISCONNECTED,
+    ERROR_MESSAGE_TOO_LARGE,
+    ERROR_RATE_LIMIT_EXCEEDED,
+)
 from .response_builder import error
 from .message_dispatcher import dispatch
 from .session_manager import SessionManager
@@ -12,12 +17,17 @@ from common.protocol import decode_message, encode_message
 
 async def handle_client(
     websocket: Any,
-    path: str,
-    session_manager: SessionManager,
+    path: Optional[str] = None,
+    session_manager: Optional[SessionManager] = None,
 ) -> None:
+    if session_manager is None:
+        raise RuntimeError("SessionManager is required")
+
     addr = websocket.remote_address or ("unknown", id(websocket))
     print(f"[NOWE POLACZENIE] Polaczono z {addr}")
     await session_manager.register_connection(addr, websocket)
+
+    closed_by_protocol = False
 
     try:
         while True:
@@ -74,10 +84,24 @@ async def handle_client(
             result = await dispatch(message_json, addr, websocket, session_manager)
 
             if result == "CLOSE":
+                closed_by_protocol = True
                 break
 
     except Exception as e:
         print(f"[{addr}] Niespodziewany blad: {e}")
     finally:
+        if not closed_by_protocol:
+            session_id = await session_manager.find_session_by_addr(addr)
+            if session_id:
+                peer_writer = await session_manager.get_peer_writer(session_id, addr)
+                if peer_writer:
+                    try:
+                        error_message = error(
+                            code=ERROR_DISCONNECTED,
+                            details="Drugi uczestnik utracil polaczenie.",
+                        )
+                        await peer_writer.send(encode_message(error_message))
+                    except (ConnectionError, OSError, websockets.exceptions.ConnectionClosed):
+                        pass
         print(f"[ROZLACZONO] {addr}")
         await session_manager.disconnect_client(addr)

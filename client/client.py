@@ -8,7 +8,6 @@ from common.protocol import decode_message, encode_message
 from common.config import ACK_TIMEOUT, MAX_MESSAGE_SIZE, RATE_LIMIT_MESSAGES, RATE_LIMIT_WINDOW
 from .api.close_api import send_close
 from .api.message_api import build_msg_frame
-from .api.pong_api import build_pong_frame
 from .api.ack_api import build_ack_frame
 
 
@@ -138,9 +137,6 @@ class ChatClient:
                     print(f"\n[CLOSE] Sesja {closed_sid} zostala zamknieta")
                     self.stop_event.set()
                     break
-                elif response_type == "PING":
-                    pong_frame = build_pong_frame()
-                    await self.websocket.send(encode_message(pong_frame))
                 elif response_type == "ERROR":
                     print(f"\n[ERROR] {response.details}")
             except websockets.exceptions.PayloadTooBig:

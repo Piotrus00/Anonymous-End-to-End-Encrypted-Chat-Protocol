@@ -2,7 +2,7 @@ import asyncio
 
 import websockets
 
-from common.config import HOST, PORT, MAX_MESSAGE_SIZE
+from common.config import HOST, PORT, KEEP_ALIVE_INTERVAL, MAX_MISSED_PINGS, MAX_MESSAGE_SIZE
 from .api.init_api import send_init
 from .api.join_api import send_join
 from .client import ChatClient
@@ -10,7 +10,12 @@ from .client import ChatClient
 
 async def main():
     try:
-        async with websockets.connect(f"ws://{HOST}:{PORT}", max_size=MAX_MESSAGE_SIZE) as websocket:
+        async with websockets.connect(
+            f"ws://{HOST}:{PORT}",
+            max_size=MAX_MESSAGE_SIZE,
+            ping_interval=KEEP_ALIVE_INTERVAL,
+            ping_timeout=KEEP_ALIVE_INTERVAL * MAX_MISSED_PINGS,
+        ) as websocket:
             print("Polaczono z serwerem!")
             client = ChatClient(websocket)
 
