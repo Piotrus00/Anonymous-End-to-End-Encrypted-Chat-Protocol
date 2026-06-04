@@ -17,8 +17,8 @@ async def handle_join(
 ) -> Optional[str]:
     join_session_id = message_json.session_id
 
-    joined, reason = await session_manager.join_session(join_session_id, addr)
-    if not joined:
+    joined, reason, jwt_token = await session_manager.join_session(join_session_id, addr)
+    if not joined or jwt_token is None:
         response = error(code=ERROR_SESSION_INVALID, details=reason)
         await writer.send(encode_message(response))
         print(f"[JOIN FAIL] {addr} - {reason}")
@@ -27,11 +27,12 @@ async def handle_join(
     # --- Session is successfully joined ---
     print(f"[JOIN OK] {addr} dolaczyl do sesji {join_session_id}")
 
-    # Send JOIN_OK to the joining client
+    # Send JOIN_OK to the joining client (z nowym JWT)
     response_to_joiner = join_ok(
         session_id=join_session_id,
         msg_id=message_json.msg_id,
         timestamp=message_json.timestamp,
+        token=jwt_token,
     )
     await writer.send(encode_message(response_to_joiner))
 
