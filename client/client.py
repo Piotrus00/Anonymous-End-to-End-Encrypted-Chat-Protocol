@@ -11,11 +11,13 @@ from .api.close_api import send_close
 from .api.message_api import build_msg_frame
 from .api.ack_api import build_ack_frame
 from .api.key_exchange_api import send_key_exchange
+from .auth_store import ClientAuthStore
 
 
 class ChatClient:
     def __init__(self, websocket: Any):
         self.websocket = websocket
+        self.auth = ClientAuthStore()
         self.crypto = CryptoSession()
         self.unacked_messages: Dict[str, float] = {}
         self.unacked_lock = asyncio.Lock()
@@ -24,8 +26,9 @@ class ChatClient:
         self.session_id: Optional[str] = None
         self._key_exchange_sent = False
 
-    async def start(self, session_id: str, is_initiator: bool):
+    async def start(self, session_id: str, auth_token: str, is_initiator: bool):
         self.session_id = session_id
+        self.auth.set(session_id, auth_token)
         if is_initiator:
             print("\n[SYSTEM] Oczekiwanie na dolaczenie drugiego uzytkownika...")
         else:
@@ -47,7 +50,12 @@ class ChatClient:
     async def _send_key_exchange(self) -> None:
         if self._key_exchange_sent or self.session_id is None:
             return
-        await send_key_exchange(self.websocket, self.session_id, self.crypto.public_key_b64())
+        await send_key_exchange(
+            self.websocket,
+            self.session_id,
+            self.auth.require_token(),
+            self.crypto.public_key_b64(),
+        )
         self._key_exchange_sent = True
         print("[SYSTEM] Wyslano klucz publiczny (KEY_EXCHANGE)")
         await self._maybe_enable_chat()
@@ -88,7 +96,7 @@ class ChatClient:
                 text = text.strip()
 
                 if text.lower() == "exit":
-                    await send_close(self.websocket, self.session_id)
+                    await send_close(self.websocket, self.session_id, self.auth.require_token())
                     self.stop_event.set()
                     break
                 if not text:
@@ -117,7 +125,11 @@ class ChatClient:
                     print(f"X {exc}")
                     continue
 
-                msg_id, frame = build_msg_frame(self.session_id, ciphertext) # Zbuduj ramkę wiadomości, która zawiera session_id, msg_id i zaszyfrowany tekst
+                msg_id, frame = build_msg_frame(
+                    self.session_id,
+                    self.auth.require_token(),
+                    ciphertext,
+                ) # Zbuduj ramkę wiadomości, która zawiera session_id, msg_id, token JWT i zaszyfrowany tekst
                 encoded_frame = encode_message(frame) # Zakoduj ramkę
 
                 if len(encoded_frame) > MAX_MESSAGE_SIZE:
@@ -163,7 +175,11 @@ class ChatClient:
 
                     print(f"\n[MSG] {text}")
 
-                    ack_frame = build_ack_frame(response.session_id, response.msg_id)
+                    ack_frame = build_ack_frame(
+                        response.session_id,
+                        self.auth.require_token(),
+                        response.msg_id,
+                    )
                     await self.websocket.send(encode_message(ack_frame)) # Po otrzymaniu wiadomości, zbuduj ramkę ACK i wyślij ją do serwera, aby potwierdzić odbiór
 
                 elif response_type == "ACK":
