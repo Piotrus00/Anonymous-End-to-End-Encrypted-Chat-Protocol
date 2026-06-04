@@ -8,6 +8,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from common.config import RATE_LIMIT_MESSAGES
+from common.jwt_auth import issue_session_token, new_participant_credential
 
 
 class SessionManager:
@@ -17,6 +18,8 @@ class SessionManager:
         self.sessions: Dict[str, List] = {}
         self.writers: Dict[tuple, Any] = {}
         self.client_status: Dict[tuple, Dict] = {}
+        # addr -> {session_id, pc} — anonimowe powiązanie połączenia z JWT (bez danych użytkownika)
+        self.credentials: Dict[tuple, Dict[str, str]] = {}
         self.lock = asyncio.Lock()
 
     async def register_connection(self, client_addr, writer: Any) -> None:
@@ -42,6 +45,7 @@ class SessionManager:
 
             # Usuń status klienta
             self.client_status.pop(client_addr, None)
+            self.credentials.pop(client_addr, None)
 
             # Znajdź i usuń klienta z sesji
             session_to_remove_from = None
@@ -98,11 +102,41 @@ class SessionManager:
             else:
                 return False
 
-    async def create_session(self, client_addr) -> str:
+    async def create_session(self, client_addr) -> tuple[str, str]:
+        """Tworzy sesję, rejestruje uczestnika i zwraca (session_id, jwt_token)."""
         session_id = f"sess_{uuid.uuid4().hex[:12]}"
+        participant_credential = new_participant_credential()
+        token = issue_session_token(session_id, participant_credential)
         async with self.lock:
             self.sessions[session_id] = [client_addr]
-        return session_id
+            self.credentials[client_addr] = {
+                "session_id": session_id,
+                "pc": participant_credential,
+            }
+        return session_id, token
+
+    async def authorize_participant(
+        self,
+        client_addr: tuple,
+        session_id: str,
+        participant_credential: str,
+    ) -> Tuple[bool, str]:
+        async with self.lock:
+            cred = self.credentials.get(client_addr)
+            if cred is None:
+                return False, "Brak zarejestrowanego uczestnika dla polaczenia"
+
+            if cred["session_id"] != session_id:
+                return False, "Polaczenie nie nalezy do tej sesji"
+
+            if cred["pc"] != participant_credential:
+                return False, "Token nie pasuje do uczestnika sesji"
+
+            participants = self.sessions.get(session_id)
+            if not participants or client_addr not in participants:
+                return False, "Sesja nie istnieje lub uczestnik nie jest aktywny"
+
+        return True, ""
 
     async def get_session(self, session_id: str) -> Optional[List]:
         async with self.lock:
@@ -112,19 +146,26 @@ class SessionManager:
         async with self.lock:
             return session_id in self.sessions
 
-    async def join_session(self, session_id: str, client_addr) -> Tuple[bool, str]:
+    async def join_session(self, session_id: str, client_addr) -> Tuple[bool, str, str | None]:
+        """Zwraca (sukces, komunikat, jwt_token lub None przy błędzie)."""
+        participant_credential = new_participant_credential()
+        token = issue_session_token(session_id, participant_credential)
         async with self.lock:
             if session_id not in self.sessions:
-                return False, f"Sesja {session_id} nie istnieje"
+                return False, f"Sesja {session_id} nie istnieje", None
 
             if client_addr in self.sessions[session_id]:
-                return False, "Już jesteś w tej sesji"
+                return False, "Już jesteś w tej sesji", None
 
             if len(self.sessions[session_id]) >= 2:
-                return False, "Sesja jest pełna"
+                return False, "Sesja jest pełna", None
 
             self.sessions[session_id].append(client_addr)
-            return True, f"Dołączono do sesji {session_id}"
+            self.credentials[client_addr] = {
+                "session_id": session_id,
+                "pc": participant_credential,
+            }
+            return True, f"Dołączono do sesji {session_id}", token
 
     async def find_session_by_addr(self, client_addr: tuple) -> Optional[str]:
         """Znajduje session_id na podstawie adresu klienta."""
@@ -153,6 +194,9 @@ class SessionManager:
             participants = self.sessions.pop(session_id, None)
             if not participants:
                 return None
+
+            for participant_addr in participants:
+                self.credentials.pop(participant_addr, None)
 
             participant_writers = [
                 self.writers.get(participant_addr)

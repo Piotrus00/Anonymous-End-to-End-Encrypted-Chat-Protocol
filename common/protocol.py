@@ -16,6 +16,7 @@ from .models import (
     InitOkFrame,
     JoinFrame,
     JoinOkFrame,
+    KeyExchangeFrame,
     MsgFrame,
     ProtocolMessage,
 )
@@ -24,8 +25,10 @@ from .models import (
 IncomingDiscriminatedMessage: TypeAlias = (
     InitFrame
     | JoinFrame
+    | KeyExchangeFrame
     | MsgFrame
     | AckFrame
+    | CloseRequestFrame
     | CloseNoticeFrame
     | InitOkFrame
     | JoinOkFrame
@@ -54,20 +57,7 @@ def decode_message(data: bytes) -> Tuple[bool, ProtocolMessage | None]:
     if not isinstance(message_json, dict):
         return False, None
 
-    message = obj.root
-
-    # Rozróżniamy CLOSE request (bez payload) od CLOSE notice (z payload),
-    if isinstance(message, CloseNoticeFrame) and "payload" not in message_json:
-        return (
-            True,
-            CloseRequestFrame(
-                msg_id=message.msg_id,
-                timestamp=message.timestamp,
-                session_id=message.session_id,
-            ),
-        )
-
-    return True, message
+    return True, obj.root
 
 
 def encode_message(message: ProtocolMessage | BaseModel | dict[str, Any]) -> bytes:

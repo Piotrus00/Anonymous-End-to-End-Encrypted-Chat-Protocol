@@ -25,18 +25,20 @@ async def main():
             choice = choice.strip()
 
             if choice == "1":
-                session_id = await send_init(websocket)
-                if session_id:
+                session_id, auth_token = await send_init(websocket)
+                if session_id and auth_token:
                     print(f"\nPrzekaz session_id drugiemu uzytkownikowi: {session_id}")
-                    await client.start(session_id, is_initiator=True)
+                    await client.start(session_id, auth_token, is_initiator=True)
 
             elif choice == "2":
                 session_id_input = await asyncio.to_thread(input, "Wpisz session_id sesji, do ktorej chcesz dolaczyc: ")
                 session_id_input = session_id_input.strip()
                 if not session_id_input:
                     print("X session_id nie moze byc pusty")
-                elif await send_join(websocket, session_id_input):
-                    await client.start(session_id_input, is_initiator=False)
+                else:
+                    joined, auth_token = await send_join(websocket, session_id_input)
+                    if joined and auth_token:
+                        await client.start(session_id_input, auth_token, is_initiator=False)
             else:
                 print("X Niepoprawny wybor")
     except (
