@@ -1,5 +1,6 @@
 import asyncio
 import time
+import shutil
 from typing import Any, Dict, Optional
 
 import websockets
@@ -15,6 +16,10 @@ from .auth_store import ClientAuthStore
 
 
 class ChatClient:
+
+    UP = "\x1b[A"       # karetka na linie wyżej
+    CLEAR = "\x1b[K"    # czyszczenie lini
+
     def __init__(self, websocket: Any):
         self.websocket = websocket
         self.auth = ClientAuthStore()
@@ -25,6 +30,7 @@ class ChatClient:
         self.chat_ready_event = asyncio.Event()
         self.session_id: Optional[str] = None
         self._key_exchange_sent = False
+        self.terminal_width = shutil.get_terminal_size().columns // 2
 
     async def start(self, session_id: str, auth_token: str, is_initiator: bool):
         self.session_id = session_id
@@ -92,7 +98,7 @@ class ChatClient:
 
         while not self.stop_event.is_set():
             try:
-                text = await asyncio.to_thread(input, "Ty: ")
+                text = await asyncio.to_thread(input)
                 text = text.strip()
 
                 if text.lower() == "exit":
@@ -148,6 +154,8 @@ class ChatClient:
                 self.stop_event.set()
                 break
 
+            print(f'{self.UP}{self.CLEAR}{text:>{self.terminal_width}}', end='')
+
     async def receiver_loop(self):
         while not self.stop_event.is_set(): # Pętla odbierająca wiadomości od serwera, działa dopóki nie zostanie ustawiony stop_event
             try:
@@ -173,7 +181,7 @@ class ChatClient:
                         print(f"\n[ERROR] Nie udalo sie odszyfrowac wiadomosci: {exc}")
                         continue
 
-                    print(f"\n[MSG] {text}")
+                    print(f"R> {text}")
 
                     ack_frame = build_ack_frame(
                         response.session_id,
@@ -187,7 +195,7 @@ class ChatClient:
                     async with self.unacked_lock:
                         if acked_msg_id in self.unacked_messages:
                             self.unacked_messages.pop(acked_msg_id, None)
-                            print(f"\n[SYSTEM] Otrzymano potwierdzenie dla {acked_msg_id}")
+                            print(f" -> Dostarczono")
 
                 elif response_type == "KEY_EXCHANGE":
                     await self._on_key_exchange_received(response.payload.public_key)
