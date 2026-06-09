@@ -1,22 +1,37 @@
 import asyncio
+import ssl
 
 import websockets
 
-from common.config import HOST, PORT, KEEP_ALIVE_INTERVAL, MAX_MISSED_PINGS, MAX_MESSAGE_SIZE
+from common.config import (
+    HOST,
+    PORT,
+    KEEP_ALIVE_INTERVAL,
+    MAX_MISSED_PINGS,
+    MAX_MESSAGE_SIZE,
+    TLS_ENABLED,
+    websocket_uri,
+)
+from common.tls import create_client_ssl_context
 from .api.init_api import send_init
 from .api.join_api import send_join
 from .client import ChatClient
 
 
 async def main():
+    ssl_context: ssl.SSLContext | None = None
+    if TLS_ENABLED:
+        ssl_context = create_client_ssl_context()
+
     try:
         async with websockets.connect(
-            f"ws://{HOST}:{PORT}",
+            websocket_uri(),
+            ssl=ssl_context,
             max_size=MAX_MESSAGE_SIZE,
             ping_interval=KEEP_ALIVE_INTERVAL,
             ping_timeout=KEEP_ALIVE_INTERVAL * MAX_MISSED_PINGS,
         ) as websocket:
-            print("Polaczono z serwerem!")
+            print(f"Polaczono z serwerem ({websocket_uri()})!")
             client = ChatClient(websocket)
 
             print("\n[1] Tworzyc nowa sesje (INIT)")
@@ -46,8 +61,9 @@ async def main():
         OSError,
         websockets.exceptions.InvalidURI,
         websockets.exceptions.InvalidHandshake,
+        ssl.SSLError,
     ):
-        print(f"X Nie mozna polaczyc sie z serwerem {HOST}:{PORT}")
+        print(f"X Nie mozna polaczyc sie z serwerem {websocket_uri()}")
         return
 
 

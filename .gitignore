@@ -136,6 +136,11 @@ ENV/
 env.bak/
 venv.bak/
 
+# TLS (generowane lokalnie — nie commituj kluczy)
+certs/*.key
+certs/*.crt
+certs/*.pem
+
 # Spyder project settings
 .spyderproject
 .spyproject
