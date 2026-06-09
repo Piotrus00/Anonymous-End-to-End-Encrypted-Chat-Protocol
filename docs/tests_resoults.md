@@ -194,7 +194,7 @@ Do weryfikacji protokołu na warstwie transportowej wykorzystany został `WireSh
 ![Logi WireShark](./images/wireshark_logs.png)
 
 #### Wnioski
-- TCP jest wykorzystywane w warstwie transportowej.
+- TLS jest wykorzystywane w warstwie transportowej.
 
 ## Obsługa błędów
 ### Wysłanie niepoprawnego JSON lub brak wymaganych pól — sprawdzenie błędu.
