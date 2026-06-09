@@ -168,7 +168,7 @@ exit
 
 ## Bezpieczeństwo
 
-### Przechwycenie ruchu na serwerze — upewnienie się, że `ciphertext` jest nieczytelny bez kluczy klientów.
+### Przechwycenie ruchu na serwerze — upewnienie się, że `ciphertext` jest nieczytelny bez kluczy prywatnych klientów.
 Posługująć sie logami z poprzedniego testu, możemy zobaczyć zawartość wiadomości w ramach `MSG` oraz klucze nadesłane przez obu klientów.
 
 #### Logi
@@ -192,6 +192,12 @@ Posługująć sie logami z poprzedniego testu, możemy zobaczyć zawartość wia
 Do weryfikacji protokołu na warstwie transportowej wykorzystany został `WireShark`.
 
 ![Logi WireShark](./images/wireshark_logs.png)
+
+![Logi Nmap](./images/nmap.jpg)
+
+![Logi Nmap2](./images/nmap2.jpg)
+
+
 
 #### Wnioski
 - TLS jest wykorzystywane w warstwie transportowej.
