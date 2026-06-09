@@ -4,7 +4,16 @@ from functools import partial
 import websockets
 
 from .client_handler import handle_client
-from common.config import HOST, PORT, KEEP_ALIVE_INTERVAL, MAX_MISSED_PINGS, MAX_MESSAGE_SIZE
+from common.config import (
+    HOST,
+    PORT,
+    KEEP_ALIVE_INTERVAL,
+    MAX_MISSED_PINGS,
+    MAX_MESSAGE_SIZE,
+    TLS_ENABLED,
+    websocket_uri,
+)
+from common.tls import create_server_ssl_context
 from .session_manager import SessionManager
 
 session_manager = SessionManager()
@@ -17,12 +26,14 @@ async def main():
         session_manager=session_manager
     )
 
-    print(f"[START] Serwer nasluchuje na {HOST}:{PORT}")
+    ssl_context = create_server_ssl_context() if TLS_ENABLED else None
+    print(f"[START] Serwer nasluchuje na {websocket_uri()}")
 
     async with websockets.serve(
         handler,
         HOST,
         PORT,
+        ssl=ssl_context,
         max_size=MAX_MESSAGE_SIZE,
         ping_interval=KEEP_ALIVE_INTERVAL,
         ping_timeout=KEEP_ALIVE_INTERVAL * MAX_MISSED_PINGS,
